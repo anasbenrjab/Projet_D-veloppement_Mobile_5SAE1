@@ -1,0 +1,10 @@
+tablego-backend/node_modules/
+tablego-backend/.env
+tablego-backend/uploads/
+npm-debug.log*
+tablego/build/
+tablego/.dart_tool/
+tablego/.idea/
+*.iml
+.vscode/
+Thumbs.db
