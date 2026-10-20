@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
-import '../../data/repositories/auth_repository.dart';
+import '../../providers/auth_provider.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -12,12 +13,12 @@ class ChangePasswordScreen extends ConsumerStatefulWidget {
       _ChangePasswordScreenState();
 }
 
-class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
-  final _formKey = GlobalKey<FormState>();
+class _ChangePasswordScreenState
+    extends ConsumerState<ChangePasswordScreen> {
+  final _formKey   = GlobalKey<FormState>();
   final _currentCtrl = TextEditingController();
-  final _newCtrl = TextEditingController();
+  final _newCtrl     = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -29,30 +30,33 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-    try {
-      await ref.read(authRepositoryProvider).changePassword(
-            currentPassword: _currentCtrl.text,
-            newPassword: _newCtrl.text,
-          );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Mot de passe modifié avec succès')));
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+
+    await ref.read(authProvider.notifier).changePassword(
+          currentPassword: _currentCtrl.text,
+          newPassword:     _newCtrl.text,
+        );
+
+    if (!mounted) return;
+    final authState = ref.read(authProvider);
+
+    if (authState.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authState.error!)),
+      );
+      ref.read(authProvider.notifier).clearError();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mot de passe modifié avec succès')),
+      );
+      Navigator.of(context).pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // isLoading comes from the notifier — no local setState needed.
+    final isLoading = ref.watch(authProvider).isLoading;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Changer le mot de passe')),
       body: Padding(
@@ -67,7 +71,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                 isPassword: true,
                 prefixIcon: Icons.lock_outline,
                 validator: (v) =>
-                    v == null || v.isEmpty ? 'Requis' : null,
+                    (v == null || v.isEmpty) ? 'Requis' : null,
               ),
               const SizedBox(height: 16),
               AppTextField(
@@ -76,8 +80,8 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                 isPassword: true,
                 prefixIcon: Icons.lock_reset_outlined,
                 validator: (v) {
-                  if (v == null || v.length < 6) {
-                    return 'Au moins 6 caractères';
+                  if (v == null || v.length < 8) {
+                    return 'Au moins 8 caractères';
                   }
                   return null;
                 },
@@ -99,7 +103,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
               AppButton(
                 label: 'Enregistrer',
                 onPressed: _save,
-                isLoading: _isLoading,
+                isLoading: isLoading,
               ),
             ],
           ),

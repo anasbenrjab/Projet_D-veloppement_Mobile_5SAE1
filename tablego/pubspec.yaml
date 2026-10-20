@@ -15,8 +15,18 @@ dependencies:
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
 
-  # HTTP
-  dio: ^5.7.0
+  # Local database
+  sqflite: ^2.4.1
+  path: ^1.9.0
+
+  # Password hashing (PBKDF2-HMAC-SHA256 + constant-time compare)
+  cryptography: ^2.7.0
+
+  # File system (app documents directory for photos)
+  path_provider: ^2.1.4
+
+  # UUID (photo filenames)
+  uuid: ^4.5.1
 
   # Storage
   shared_preferences: ^2.3.3
@@ -24,7 +34,6 @@ dependencies:
 
   # Image
   image_picker: ^1.1.2
-  cached_network_image: ^3.4.1
 
   # UI
   google_fonts: ^6.2.1
@@ -38,6 +47,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.13
   riverpod_generator: ^2.6.1
+
+  # In-memory SQLite for unit tests (no Android/iOS needed)
+  sqflite_common_ffi: ^2.3.4+1
 
 flutter:
   uses-material-design: true

@@ -1,7 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/json_utils.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 
@@ -17,7 +19,14 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(profileProvider.notifier).loadProfile());
+    Future.microtask(_load);
+  }
+
+  void _load() {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId != null) {
+      ref.read(profileProvider.notifier).loadClientProfile(userId);
+    }
   }
 
   @override
@@ -25,17 +34,20 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
     final state = ref.watch(profileProvider);
 
     if (state.isLoading && state.data == null) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final profile = state.data ?? {};
-    final name = profile['full_name'] ?? 'Utilisateur';
-    final email = profile['email'] ?? '';
-    final phone = profile['phone'] ?? '';
-    final photoUrl = profile['photo_url'];
-    final prefs = parseStringList(profile['dietary_preferences']);
-    final allergies = parseStringList(profile['allergies']);
+    // Extract typed model — falls back to empty defaults if not yet loaded.
+    final profile = state.data is ClientData
+        ? (state.data! as ClientData).profile
+        : null;
+
+    final name       = profile?.fullName ?? 'Utilisateur';
+    final email      = profile?.email ?? '';
+    final phone      = profile?.phone ?? '';
+    final photoPath  = profile?.photoPath;
+    final prefs      = profile?.dietaryPreferences ?? const [];
+    final allergies  = profile?.allergies ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -45,7 +57,7 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
               await Navigator.of(context).pushNamed('/edit-client-profile');
-              ref.read(profileProvider.notifier).loadProfile();
+              _load();
             },
           ),
         ],
@@ -54,21 +66,11 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Avatar + Name
+            // ── Avatar ──────────────────────────────────────────────────────
             Center(
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: AppColors.primary.withOpacity(0.15),
-                    backgroundImage: photoUrl != null
-                        ? NetworkImage(photoUrl as String)
-                        : null,
-                    child: photoUrl == null
-                        ? const Icon(Icons.person,
-                            size: 52, color: AppColors.primary)
-                        : null,
-                  ),
+                  _Avatar(photoPath: photoPath, radius: 52),
                   const SizedBox(height: 12),
                   Text(name,
                       style: const TextStyle(
@@ -81,48 +83,49 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            // Stats row
+
+            // ── Stats row ────────────────────────────────────────────────────
             Row(
-              children: [
-                _StatCard(icon: Icons.favorite, label: 'Favoris', value: '—'),
-                const SizedBox(width: 12),
-                _StatCard(
-                    icon: Icons.location_on_outlined,
-                    label: 'Adresses',
-                    value: '—'),
-                const SizedBox(width: 12),
-                _StatCard(
-                    icon: Icons.emoji_events_outlined,
-                    label: 'Badges',
-                    value: '—'),
+              children: const [
+                _StatCard(icon: Icons.favorite,             label: 'Favoris',  value: '—'),
+                SizedBox(width: 12),
+                _StatCard(icon: Icons.location_on_outlined, label: 'Adresses', value: '—'),
+                SizedBox(width: 12),
+                _StatCard(icon: Icons.emoji_events_outlined, label: 'Badges',  value: '—'),
               ],
             ),
             const SizedBox(height: 24),
-            // Info card
+
+            // ── Info card ────────────────────────────────────────────────────
             _InfoSection(
               title: 'Informations',
               children: [
-                _InfoRow(icon: Icons.phone_outlined, text: phone.isEmpty ? 'Non renseigné' : phone),
+                _InfoRow(
+                    icon: Icons.phone_outlined,
+                    text: phone.isEmpty ? 'Non renseigné' : phone),
                 _InfoRow(icon: Icons.email_outlined, text: email),
               ],
             ),
             const SizedBox(height: 16),
-            // Dietary preferences
+
+            // ── Dietary preferences ──────────────────────────────────────────
             if (prefs.isNotEmpty) ...[
-              _SectionHeader(title: 'Préférences alimentaires'),
+              const _SectionHeader(title: 'Préférences alimentaires'),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: prefs
-                    .map((p) => _PreferenceChip(label: p, color: AppColors.eco))
+                    .map((p) =>
+                        _PreferenceChip(label: p, color: AppColors.eco))
                     .toList(),
               ),
               const SizedBox(height: 16),
             ],
-            // Allergies
+
+            // ── Allergies ────────────────────────────────────────────────────
             if (allergies.isNotEmpty) ...[
-              _SectionHeader(title: 'Allergies'),
+              const _SectionHeader(title: 'Allergies'),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -134,7 +137,7 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
               ),
               const SizedBox(height: 24),
             ],
-            // Menu items
+
             _MenuList(),
           ],
         ),
@@ -142,6 +145,38 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
     );
   }
 }
+
+// ── _Avatar ───────────────────────────────────────────────────────────────────
+
+/// Shows a local file photo when [photoPath] is set and the file exists.
+/// Falls back to the default icon if the path is null or the file is missing,
+/// so the screen never crashes when a file has been deleted externally.
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.photoPath, required this.radius});
+
+  final String? photoPath;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    ImageProvider? image;
+    if (photoPath != null) {
+      final file = File(photoPath!);
+      if (file.existsSync()) image = FileImage(file);
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+      backgroundImage: image,
+      child: image == null
+          ? Icon(Icons.person, size: radius, color: AppColors.primary)
+          : null,
+    );
+  }
+}
+
+// ── Small reusable widgets ────────────────────────────────────────────────────
 
 class _StatCard extends StatelessWidget {
   const _StatCard(
@@ -225,11 +260,8 @@ class _SectionHeader extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) {
-    return Text(title,
-        style: const TextStyle(
-            fontSize: 15, fontWeight: FontWeight.w600));
-  }
+  Widget build(BuildContext context) => Text(title,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600));
 }
 
 class _PreferenceChip extends StatelessWidget {
@@ -242,9 +274,9 @@ class _PreferenceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(label,
           style: TextStyle(
@@ -257,17 +289,17 @@ class _MenuList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = [
-      (Icons.favorite_border, 'Mes favoris', '/favorites'),
-      (Icons.lock_outline, 'Changer le mot de passe', '/change-password'),
-      (Icons.help_outline, 'Aide & Support', null),
-      (Icons.logout, 'Se déconnecter', null),
+      (Icons.favorite_border,  'Mes favoris',           '/favorites'),
+      (Icons.lock_outline,     'Changer le mot de passe', '/change-password'),
+      (Icons.help_outline,     'Aide & Support',         null),
+      (Icons.logout,           'Se déconnecter',         null),
     ];
 
     return Column(
       children: items
           .map((item) => ListTile(
                 leading: Icon(item.$1, color: AppColors.primary),
-                title: Text(item.$2,
+                title:   Text(item.$2,
                     style: const TextStyle(fontSize: 14)),
                 trailing: const Icon(Icons.chevron_right,
                     color: AppColors.grey500),
@@ -276,8 +308,7 @@ class _MenuList extends ConsumerWidget {
                   if (item.$2 == 'Se déconnecter') {
                     await ref.read(authProvider.notifier).logout();
                     if (context.mounted) {
-                      Navigator.of(context)
-                          .pushReplacementNamed('/login');
+                      Navigator.of(context).pushReplacementNamed('/login');
                     }
                   } else if (item.$3 != null) {
                     Navigator.of(context).pushNamed(item.$3!);

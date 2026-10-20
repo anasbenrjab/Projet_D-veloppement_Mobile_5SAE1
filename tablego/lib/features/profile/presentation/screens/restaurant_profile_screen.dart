@@ -1,9 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/json_utils.dart';
-import '../../providers/profile_provider.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
+import '../../providers/profile_provider.dart';
 
 class RestaurantProfileScreen extends ConsumerStatefulWidget {
   const RestaurantProfileScreen({super.key});
@@ -18,8 +20,14 @@ class _RestaurantProfileScreenState
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-        () => ref.read(profileProvider.notifier).loadProfile());
+    Future.microtask(_load);
+  }
+
+  void _load() {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId != null) {
+      ref.read(profileProvider.notifier).loadRestaurantProfile(userId);
+    }
   }
 
   @override
@@ -27,18 +35,19 @@ class _RestaurantProfileScreenState
     final state = ref.watch(profileProvider);
 
     if (state.isLoading && state.data == null) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final profile = state.data ?? {};
-    final name = profile['name'] ?? 'Mon Restaurant';
-    final address = profile['address'] ?? '';
-    final cuisineType = profile['cuisine_type'] ?? '';
-    final description = profile['description'] ?? '';
-    final photos = parseStringList(profile['photos']);
-    final hours = parseJsonMap(profile['opening_hours']);
-    final hoursIsEmpty = hours.isEmpty;
+    final profile = state.data is RestaurantData
+        ? (state.data! as RestaurantData).profile
+        : null;
+
+    final name        = profile?.name ?? 'Mon Restaurant';
+    final address     = profile?.address ?? '';
+    final cuisineType = profile?.cuisineType ?? '';
+    final description = profile?.description ?? '';
+    final photoPaths  = profile?.photoPaths ?? const [];
+    final hours       = profile?.openingHours ?? const {};
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +58,7 @@ class _RestaurantProfileScreenState
             onPressed: () async {
               await Navigator.of(context)
                   .pushNamed('/edit-restaurant-profile');
-              ref.read(profileProvider.notifier).loadProfile();
+              _load();
             },
           ),
         ],
@@ -58,23 +67,21 @@ class _RestaurantProfileScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header image
-            Container(
+            // ── Header image ─────────────────────────────────────────────────
+            SizedBox(
               height: 200,
-              color: AppColors.grey100,
-              child: photos.isNotEmpty
-                  ? Image.network(photos.first,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => _placeholder())
+              width: double.infinity,
+              child: photoPaths.isNotEmpty
+                  ? _localOrPlaceholder(photoPaths.first)
                   : _placeholder(),
             ),
+
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name + cuisine
+                  // ── Name + cuisine ────────────────────────────────────────
                   Row(
                     children: [
                       Expanded(
@@ -88,7 +95,8 @@ class _RestaurantProfileScreenState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color:
+                                AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(cuisineType,
@@ -99,8 +107,8 @@ class _RestaurantProfileScreenState
                         ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  if (address.isNotEmpty)
+                  if (address.isNotEmpty) ...[
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         const Icon(Icons.location_on_outlined,
@@ -109,31 +117,38 @@ class _RestaurantProfileScreenState
                         Expanded(
                           child: Text(address,
                               style: const TextStyle(
-                                  color: AppColors.grey500,
-                                  fontSize: 13)),
+                                  color: AppColors.grey500, fontSize: 13)),
                         ),
                       ],
                     ),
+                  ],
                   if (description.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(description,
-                        style: const TextStyle(
-                            fontSize: 14, height: 1.5)),
+                        style:
+                            const TextStyle(fontSize: 14, height: 1.5)),
                   ],
-                  // Opening hours
-                  if (!hoursIsEmpty) ...[
+
+                  // ── Opening hours ─────────────────────────────────────────
+                  if (hours.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     const Text('Horaires d\'ouverture',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
-                    ...hours.entries.map((e) => _HourRow(
-                        day: e.key,
-                        open: (e.value as Map)['open'] ?? '',
-                        close: (e.value as Map)['close'] ?? '')),
+                    ...hours.entries.map((e) {
+                      final v = e.value;
+                      final open  = (v is Map ? v['open']  : '') ?? '';
+                      final close = (v is Map ? v['close'] : '') ?? '';
+                      return _HourRow(
+                          day: e.key,
+                          open: open.toString(),
+                          close: close.toString());
+                    }),
                   ],
-                  // Photos grid
-                  if (photos.length > 1) ...[
+
+                  // ── Photos grid ───────────────────────────────────────────
+                  if (photoPaths.length > 1) ...[
                     const SizedBox(height: 20),
                     const Text('Photos',
                         style: TextStyle(
@@ -147,20 +162,18 @@ class _RestaurantProfileScreenState
                               crossAxisCount: 3,
                               crossAxisSpacing: 8,
                               mainAxisSpacing: 8),
-                      itemCount: photos.length,
+                      itemCount: photoPaths.length,
                       itemBuilder: (_, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.network(photos[i],
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                                color: AppColors.grey100)),
+                        child: _localOrPlaceholder(photoPaths[i]),
                       ),
                     ),
                   ],
+
                   const SizedBox(height: 24),
-                  // Logout
                   ListTile(
-                    leading: const Icon(Icons.logout, color: AppColors.error),
+                    leading:
+                        const Icon(Icons.logout, color: AppColors.error),
                     title: const Text('Se déconnecter'),
                     contentPadding: EdgeInsets.zero,
                     onTap: () async {
@@ -180,10 +193,21 @@ class _RestaurantProfileScreenState
     );
   }
 
+  /// Shows a local file image if the path exists on disk, otherwise the
+  /// placeholder — so the screen never crashes on a missing file.
+  Widget _localOrPlaceholder(String path) {
+    final file = File(path);
+    if (file.existsSync()) {
+      return Image.file(file, fit: BoxFit.cover, width: double.infinity);
+    }
+    return _placeholder();
+  }
+
   Widget _placeholder() => Container(
         color: AppColors.grey100,
         child: const Center(
-            child: Icon(Icons.store, size: 72, color: AppColors.grey300)),
+            child:
+                Icon(Icons.store, size: 72, color: AppColors.grey300)),
       );
 }
 
@@ -193,8 +217,13 @@ class _HourRow extends StatelessWidget {
   final String day, open, close;
 
   static const _days = {
-    'mon': 'Lundi', 'tue': 'Mardi', 'wed': 'Mercredi',
-    'thu': 'Jeudi', 'fri': 'Vendredi', 'sat': 'Samedi', 'sun': 'Dimanche'
+    'mon': 'Lundi',
+    'tue': 'Mardi',
+    'wed': 'Mercredi',
+    'thu': 'Jeudi',
+    'fri': 'Vendredi',
+    'sat': 'Samedi',
+    'sun': 'Dimanche',
   };
 
   @override

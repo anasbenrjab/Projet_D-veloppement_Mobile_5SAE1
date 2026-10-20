@@ -1,18 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/json_utils.dart';
+import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../data/models/client_profile_model.dart';
 import '../../providers/profile_provider.dart';
-import '../../data/repositories/profile_repository.dart';
 
 const _kDietaryOptions = [
-  'halal', 'vegetarian', 'vegan', 'pescatarian', 'gluten-free', 'kosher'
+  'halal', 'vegetarian', 'vegan', 'pescatarian', 'gluten-free', 'kosher',
 ];
 const _kAllergyOptions = [
-  'peanuts', 'gluten', 'dairy', 'eggs', 'soy', 'shellfish', 'tree nuts', 'fish'
+  'peanuts', 'gluten', 'dairy', 'eggs', 'soy', 'shellfish', 'tree nuts', 'fish',
 ];
 
 class EditClientProfileScreen extends ConsumerStatefulWidget {
@@ -25,10 +28,11 @@ class EditClientProfileScreen extends ConsumerStatefulWidget {
 
 class _EditClientProfileScreenState
     extends ConsumerState<EditClientProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey  = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  Set<String> _selectedDietary = {};
+
+  Set<String> _selectedDietary   = {};
   Set<String> _selectedAllergies = {};
   bool _initialized = false;
 
@@ -39,59 +43,81 @@ class _EditClientProfileScreenState
     super.dispose();
   }
 
-  void _initFromProfile(Map<String, dynamic> profile) {
+  void _initFromProfile(ClientProfileModel profile) {
     if (_initialized) return;
     _initialized = true;
-    _nameCtrl.text = profile['full_name'] ?? '';
-    _phoneCtrl.text = profile['phone'] ?? '';
-    final prefs = parseStringList(profile['dietary_preferences']);
-    final allergies = parseStringList(profile['allergies']);
+    _nameCtrl.text  = profile.fullName ?? '';
+    _phoneCtrl.text = profile.phone ?? '';
     setState(() {
-      _selectedDietary = Set.from(prefs);
-      _selectedAllergies = Set.from(allergies);
+      _selectedDietary   = Set.from(profile.dietaryPreferences);
+      _selectedAllergies = Set.from(profile.allergies);
     });
   }
 
-  Future<void> _pickAndUploadPhoto() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _pickPhoto() async {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (image == null) return;
-    try {
-      await ref.read(profileRepositoryProvider).uploadPhoto(image.path);
-      if (mounted) {
+
+    await ref.read(profileProvider.notifier).savePhoto(
+          userId:     userId,
+          userType:   'client',
+          sourcePath: image.path,
+        );
+    if (mounted) {
+      final err = ref.read(profileProvider).error;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err)));
+        ref.read(profileProvider.notifier).clearError();
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Photo mise à jour')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
     }
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final success =
-        await ref.read(profileProvider.notifier).updateClientProfile(
-              fullName: _nameCtrl.text.trim(),
-              phone: _phoneCtrl.text.trim(),
-              dietaryPreferences: _selectedDietary.toList(),
-              allergies: _selectedAllergies.toList(),
-            );
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+
+    final success = await ref.read(profileProvider.notifier).updateClientProfile(
+          userId:             userId,
+          fullName:           _nameCtrl.text.trim(),
+          phone:              _phoneCtrl.text.trim(),
+          dietaryPreferences: _selectedDietary.toList(),
+          allergies:          _selectedAllergies.toList(),
+        );
+
     if (!mounted) return;
     if (success) {
       Navigator.of(context).pop();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur lors de la mise à jour')));
+      final err = ref.read(profileProvider).error ?? 'Erreur lors de la mise à jour';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err)));
+      ref.read(profileProvider.notifier).clearError();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(profileProvider);
-    if (state.data != null) _initFromProfile(state.data!);
+    final state   = ref.watch(profileProvider);
+    final profile = state.data is ClientData
+        ? (state.data! as ClientData).profile
+        : null;
+
+    if (profile != null) _initFromProfile(profile);
+
+    final photoPath = profile?.photoPath;
+    ImageProvider? photoImage;
+    if (photoPath != null) {
+      final f = File(photoPath);
+      if (f.existsSync()) photoImage = FileImage(f);
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Modifier le profil')),
@@ -102,17 +128,20 @@ class _EditClientProfileScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Photo
+              // ── Photo picker ──────────────────────────────────────────────
               Center(
                 child: GestureDetector(
-                  onTap: _pickAndUploadPhoto,
+                  onTap: _pickPhoto,
                   child: Stack(
                     children: [
                       CircleAvatar(
                         radius: 48,
                         backgroundColor: AppColors.grey100,
-                        child: const Icon(Icons.person,
-                            size: 48, color: AppColors.grey500),
+                        backgroundImage: photoImage,
+                        child: photoImage == null
+                            ? const Icon(Icons.person,
+                                size: 48, color: AppColors.grey500)
+                            : null,
                       ),
                       Positioned(
                         bottom: 0,
@@ -131,12 +160,13 @@ class _EditClientProfileScreenState
                 ),
               ),
               const SizedBox(height: 28),
+
               AppTextField(
                 label: 'Nom complet',
                 controller: _nameCtrl,
                 prefixIcon: Icons.person_outline,
                 validator: (v) =>
-                    v == null || v.isEmpty ? 'Nom requis' : null,
+                    (v == null || v.trim().isEmpty) ? 'Nom requis' : null,
               ),
               const SizedBox(height: 16),
               AppTextField(
@@ -146,10 +176,10 @@ class _EditClientProfileScreenState
                 prefixIcon: Icons.phone_outlined,
               ),
               const SizedBox(height: 24),
-              // Dietary preferences
+
+              // ── Dietary preferences ───────────────────────────────────────
               const Text('Préférences alimentaires',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -158,7 +188,7 @@ class _EditClientProfileScreenState
                     .map((pref) => FilterChip(
                           label: Text(pref),
                           selected: _selectedDietary.contains(pref),
-                          selectedColor: AppColors.eco.withOpacity(0.2),
+                          selectedColor: AppColors.eco.withValues(alpha: 0.2),
                           checkmarkColor: AppColors.eco,
                           side: BorderSide(
                               color: _selectedDietary.contains(pref)
@@ -171,10 +201,10 @@ class _EditClientProfileScreenState
                     .toList(),
               ),
               const SizedBox(height: 24),
-              // Allergies
+
+              // ── Allergies ─────────────────────────────────────────────────
               const Text('Allergies',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -183,7 +213,8 @@ class _EditClientProfileScreenState
                     .map((a) => FilterChip(
                           label: Text(a),
                           selected: _selectedAllergies.contains(a),
-                          selectedColor: AppColors.error.withOpacity(0.15),
+                          selectedColor:
+                              AppColors.error.withValues(alpha: 0.15),
                           checkmarkColor: AppColors.error,
                           side: BorderSide(
                               color: _selectedAllergies.contains(a)
@@ -196,6 +227,7 @@ class _EditClientProfileScreenState
                     .toList(),
               ),
               const SizedBox(height: 32),
+
               AppButton(
                 label: 'Enregistrer',
                 onPressed: _save,

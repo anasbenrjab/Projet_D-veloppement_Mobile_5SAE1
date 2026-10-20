@@ -7,6 +7,7 @@ import 'features/auth/presentation/screens/register_screen.dart';
 import 'features/auth/presentation/screens/forgot_password_screen.dart';
 import 'features/auth/presentation/screens/change_password_screen.dart';
 import 'features/auth/presentation/screens/client_home_screen.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'features/profile/presentation/screens/client_profile_screen.dart';
 import 'features/profile/presentation/screens/edit_client_profile_screen.dart';
 import 'features/profile/presentation/screens/restaurant_profile_screen.dart';
@@ -46,13 +47,16 @@ class TableGoApp extends StatelessWidget {
   }
 }
 
-/// Routes to client or restaurant profile based on stored user data.
-/// For Module 1, defaults to ClientProfileScreen.
+/// Routes to [ClientProfileScreen] or [RestaurantProfileScreen] based on
+/// the authenticated user's [userType].
 class _ProfileRouter extends ConsumerWidget {
   const _ProfileRouter();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const ClientProfileScreen();
+    final userType = ref.watch(authProvider).user?.userType;
+    return userType == 'restaurant'
+        ? const RestaurantProfileScreen()
+        : const ClientProfileScreen();
   }
 }

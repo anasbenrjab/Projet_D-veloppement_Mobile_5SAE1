@@ -75,7 +75,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                           child: CircleAvatar(
                             radius: 22,
                             backgroundColor:
-                                AppColors.primary.withOpacity(0.15),
+                                AppColors.primary.withValues(alpha: 0.15),
                             child: const Icon(Icons.person,
                                 color: AppColors.primary, size: 22),
                           ),
@@ -159,7 +159,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onNavTap,
         backgroundColor: Colors.white,
-        indicatorColor: AppColors.primary.withOpacity(0.15),
+        indicatorColor: AppColors.primary.withValues(alpha: 0.15),
         destinations: const [
           NavigationDestination(
               icon: Icon(Icons.home_outlined),
@@ -198,7 +198,7 @@ class _NearbyList extends ConsumerWidget {
     return favState.when(
       loading: () => const SliverToBoxAdapter(
           child: Center(child: CircularProgressIndicator())),
-      error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+      error: (_, e) => const SliverToBoxAdapter(child: SizedBox.shrink()),
       data: (restaurants) => SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         sliver: SliverList(

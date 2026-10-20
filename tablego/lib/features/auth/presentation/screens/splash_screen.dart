@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/network/api_client.dart';
+
 import '../../../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -14,16 +15,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigate();
+    _init();
   }
 
-  Future<void> _navigate() async {
-    await Future.delayed(const Duration(seconds: 2));
+  Future<void> _init() async {
+    // Minimum splash display time runs in parallel with session restore.
+    await Future.wait([
+      Future<void>.delayed(const Duration(seconds: 2)),
+      ref.read(authProvider.notifier).restoreSession(),
+    ]);
     if (!mounted) return;
-    final hasToken = await AuthStorage.hasToken();
-    if (!mounted) return;
+
+    final isLoggedIn = ref.read(authProvider).isLoggedIn;
     Navigator.of(context).pushReplacementNamed(
-      hasToken ? '/home' : '/login',
+      isLoggedIn ? '/home' : '/login',
     );
   }
 
@@ -51,7 +56,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             Text(
               'Découvrez, commandez, savourez',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.85), fontSize: 14),
+                  color: Colors.white.withValues(alpha: 0.85), fontSize: 14),
             ),
             const SizedBox(height: 60),
             const CircularProgressIndicator(
