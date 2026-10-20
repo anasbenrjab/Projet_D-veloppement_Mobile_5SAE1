@@ -5,21 +5,19 @@ import 'package:tablego/core/database/tables/user_module_tables.dart';
 
 /// Returns a [DatabaseHelper] backed by a fresh in-memory SQLite database.
 ///
-/// Uses sqflite_common_ffi so tests run on the host machine with no emulator.
-/// Call once per test (or in setUp) — each call creates an independent DB.
+/// Callers are responsible for calling [sqfliteFfiInit] and setting
+/// `databaseFactory = databaseFactoryFfi` exactly once in [setUpAll] — doing
+/// it per-call produces the repeated "changing sqflite default factory"
+/// warning.
 ///
-/// The unique [_counter] path ensures sqflite_ffi creates a separate memory
-/// database for every call, even though [inMemoryDatabasePath] itself is
-/// shared across calls in the ffi implementation.
+/// Each call uses a unique URI so sqflite_ffi creates a distinct in-memory
+/// database, preventing cross-test data leakage.
 int _counter = 0;
 
 Future<DatabaseHelper> buildTestDb() async {
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
-
-  // Using a unique name forces sqflite_ffi to create a distinct in-memory
-  // database for each test, preventing cross-test data leakage.
-  final uniquePath = 'file:tablego_test_${_counter++}?mode=memory&cache=shared';
+  // Unique URI → independent in-memory DB per test.
+  final uniquePath =
+      'file:tablego_test_${_counter++}?mode=memory&cache=shared';
 
   final db = await databaseFactoryFfi.openDatabase(
     uniquePath,

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
@@ -59,6 +60,10 @@ class AuthRepository {
 
   final DatabaseHelper _db;
   final FlutterSecureStorage _storage;
+
+  // Exposed for testing only — allows test helpers to access the same DB.
+  @visibleForTesting
+  DatabaseHelper get dbHelperForTesting => _db;
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/json_utils.dart';
-import '../../../../shared/widgets/restaurant_card.dart';
+import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/dish_card.dart';
+import '../../../../shared/widgets/restaurant_card.dart';
 import '../../providers/favorites_provider.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
@@ -31,6 +32,28 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Surface any errors from either notifier as a SnackBar.
+    final userId = ref.watch(authProvider).user?.id;
+
+    if (userId != null) {
+      ref.listen(favoriteRestaurantsProvider(userId), (_, next) {
+        if (next.error != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(next.error!)));
+          ref
+              .read(favoriteRestaurantsProvider(userId).notifier)
+              .clearError();
+        }
+      });
+      ref.listen(favoriteDishesProvider(userId), (_, next) {
+        if (next.error != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(next.error!)));
+          ref.read(favoriteDishesProvider(userId).notifier).clearError();
+        }
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Favoris'),
@@ -45,109 +68,118 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _RestaurantsTab(),
-          _DishesTab(),
-        ],
+      body: userId == null
+          ? const Center(child: Text('Connectez-vous pour voir vos favoris'))
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _RestaurantsTab(userId: userId),
+                _DishesTab(userId: userId),
+              ],
+            ),
+    );
+  }
+}
+
+// ── Restaurants tab ───────────────────────────────────────────────────────────
+
+class _RestaurantsTab extends ConsumerWidget {
+  const _RestaurantsTab({required this.userId});
+  final int userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(favoriteRestaurantsProvider(userId));
+
+    if (state.isLoading && state.restaurants.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.restaurants.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.favorite_border,
+        message:
+            'Aucun restaurant favori\nAjoutez des restaurants que vous aimez',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.read(favoriteRestaurantsProvider(userId).notifier).load(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: state.restaurants.length,
+        itemBuilder: (_, i) {
+          final r = state.restaurants[i];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: RestaurantCard(
+              name:        r.name,
+              cuisineType: r.cuisineType,
+              address:     r.address,
+              photoPath:   r.firstPhotoPath,
+              isFavorite:  true,
+              onFavoriteTap: () => ref
+                  .read(favoriteRestaurantsProvider(userId).notifier)
+                  .toggle(r.id),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-// ─── Restaurants tab ──────────────────────────────────────────────────────────
-class _RestaurantsTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(favoriteRestaurantsProvider);
+// ── Dishes tab ────────────────────────────────────────────────────────────────
 
-    return state.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e')),
-      data: (restaurants) {
-        if (restaurants.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.favorite_border,
-            message: 'Aucun restaurant favori\nAjoutez des restaurants que vous aimez',
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(favoriteRestaurantsProvider.notifier).load(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: restaurants.length,
-            itemBuilder: (_, i) {
-              final r = restaurants[i];
-              final id = r['id'] as int;
-              final photos = parseStringList(r['photos']);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: RestaurantCard(
-                  name: r['name'] ?? '',
-                  cuisineType: r['cuisine_type'] ?? '',
-                  address: r['address'] ?? '',
-                  photoUrl: photos.isNotEmpty ? photos.first : null,
-                  isFavorite: true,
-                  onFavoriteTap: () => ref
-                      .read(favoriteRestaurantsProvider.notifier)
-                      .toggle(id),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ─── Dishes tab ───────────────────────────────────────────────────────────────
 class _DishesTab extends ConsumerWidget {
+  const _DishesTab({required this.userId});
+  final int userId;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(favoriteDishesProvider);
+    final state = ref.watch(favoriteDishesProvider(userId));
 
-    return state.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e')),
-      data: (dishes) {
-        if (dishes.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.fastfood_outlined,
-            message: 'Aucun plat favori\nAjoutez des plats que vous aimez',
+    if (state.isLoading && state.dishes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.dishes.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.fastfood_outlined,
+        message: 'Aucun plat favori\nAjoutez des plats que vous aimez',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.read(favoriteDishesProvider(userId).notifier).load(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: state.dishes.length,
+        itemBuilder: (_, i) {
+          final d = state.dishes[i];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DishCard(
+              name:           d.name,
+              price:          d.price,
+              restaurantName: d.restaurantName,
+              description:    d.description,
+              photoPath:      d.photoPath,
+              isFavorite:     true,
+              onFavoriteTap: () => ref
+                  .read(favoriteDishesProvider(userId).notifier)
+                  .toggle(d.id),
+            ),
           );
-        }
-        return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(favoriteDishesProvider.notifier).load(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: dishes.length,
-            itemBuilder: (_, i) {
-              final d = dishes[i];
-              final id = d['id'] as int;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: DishCard(
-                  name: d['name'] ?? '',
-                  price: (d['price'] as num?)?.toDouble() ?? 0.0,
-                  restaurantName: d['restaurant_name'] ?? '',
-                  description: d['description'],
-                  photoUrl: d['photo_url'],
-                  isFavorite: true,
-                  onFavoriteTap: () =>
-                      ref.read(favoriteDishesProvider.notifier).toggle(id),
-                ),
-              );
-            },
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }
+
+// ── Empty state ───────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.icon, required this.message});

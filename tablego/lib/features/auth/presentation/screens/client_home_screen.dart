@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/json_utils.dart';
+import '../../../favorites/providers/favorites_provider.dart';
 import '../../../profile/providers/profile_provider.dart';
 import '../../../recommendations/presentation/widgets/recommendation_carousel.dart';
-import '../../../favorites/providers/favorites_provider.dart';
+import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/restaurant_card.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
@@ -20,7 +21,12 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(profileProvider.notifier).loadProfile());
+    Future.microtask(() {
+      final userId = ref.read(authProvider).user?.id;
+      if (userId != null) {
+        ref.read(profileProvider.notifier).loadClientProfile(userId);
+      }
+    });
   }
 
   void _onNavTap(int index) {
@@ -37,8 +43,13 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = ref.watch(profileProvider).data;
-    final name = profile?['full_name'] ?? 'vous';
+    final profileState = ref.watch(profileProvider);
+    final String name;
+    if (profileState.data is ClientData) {
+      name = (profileState.data! as ClientData).profile.fullName ?? 'vous';
+    } else {
+      name = 'vous';
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -50,7 +61,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Greeting
+                    // ── Greeting ───────────────────────────────────────────
                     Row(
                       children: [
                         Expanded(
@@ -83,7 +94,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // Search bar
+                    // ── Search bar (placeholder for Module 2) ──────────────
                     GestureDetector(
                       onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -103,26 +114,27 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                             SizedBox(width: 10),
                             Text('Restaurants, plats...',
                                 style: TextStyle(
-                                    color: AppColors.grey500, fontSize: 14)),
+                                    color: AppColors.grey500,
+                                    fontSize: 14)),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 28),
-                    // Recommendations section
+                    // ── Recommendations header ─────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Recommandé pour vous',
+                      children: const [
+                        Text('Recommandé pour vous',
                             style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold)),
                         Row(
                           children: [
-                            const Icon(Icons.auto_awesome,
+                            Icon(Icons.auto_awesome,
                                 size: 16, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            const Text('IA',
+                            SizedBox(width: 4),
+                            Text('IA',
                                 style: TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 12,
@@ -135,7 +147,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
               ),
             ),
-            // Recommendations carousel
+            // ── Recommendations carousel ───────────────────────────────────
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.only(top: 12),
@@ -150,8 +162,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                         fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
-            // Nearby = same data as recommendations for now
-            _NearbyList(),
+            // ── Nearby (uses favorites as placeholder — TODO Module 2) ─────
+            const _NearbyList(),
           ],
         ),
       ),
@@ -171,7 +183,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               label: 'Explorer'),
           NavigationDestination(
               icon: Icon(Icons.favorite_outline),
-              selectedIcon: Icon(Icons.favorite, color: AppColors.primary),
+              selectedIcon:
+                  Icon(Icons.favorite, color: AppColors.primary),
               label: 'Favoris'),
           NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
@@ -188,41 +201,48 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   }
 }
 
+// ── _NearbyList ───────────────────────────────────────────────────────────────
+// TODO(module-2): replace with actual nearby/search API.
+// Currently uses the current user's favorite restaurants as placeholder data.
 class _NearbyList extends ConsumerWidget {
+  const _NearbyList();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final favState = ref.watch(favoriteRestaurantsProvider);
-    final favIds = favState.valueOrNull?.map((r) => r['id'] as int).toSet() ?? {};
+    final userId = ref.watch(authProvider).user?.id;
+    if (userId == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
 
-    // Using favorites as nearby placeholder
-    return favState.when(
-      loading: () => const SliverToBoxAdapter(
-          child: Center(child: CircularProgressIndicator())),
-      error: (_, e) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-      data: (restaurants) => SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (_, i) {
-              final r = restaurants[i];
-              final id = r['id'] as int;
-              final photos = parseStringList(r['photos']);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: RestaurantCard(
-                  name: r['name'] ?? '',
-                  cuisineType: r['cuisine_type'] ?? '',
-                  address: r['address'] ?? '',
-                  photoUrl: photos.isNotEmpty ? photos.first : null,
-                  isFavorite: favIds.contains(id),
-                  onFavoriteTap: () => ref
-                      .read(favoriteRestaurantsProvider.notifier)
-                      .toggle(id),
-                ),
-              );
-            },
-            childCount: restaurants.length,
-          ),
+    final state  = ref.watch(favoriteRestaurantsProvider(userId));
+    final favIds = state.restaurants.map((r) => r.id).toSet();
+
+    if (state.isLoading && state.restaurants.isEmpty) {
+      return const SliverToBoxAdapter(
+          child: Center(child: CircularProgressIndicator()));
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (_, i) {
+            final r = state.restaurants[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: RestaurantCard(
+                name:        r.name,
+                cuisineType: r.cuisineType,
+                address:     r.address,
+                photoPath:   r.firstPhotoPath,
+                isFavorite:  favIds.contains(r.id),
+                onFavoriteTap: () => ref
+                    .read(favoriteRestaurantsProvider(userId).notifier)
+                    .toggle(r.id),
+              ),
+            );
+          },
+          childCount: state.restaurants.length,
         ),
       ),
     );

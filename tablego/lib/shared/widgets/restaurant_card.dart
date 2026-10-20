@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 
 class RestaurantCard extends StatelessWidget {
@@ -7,7 +10,7 @@ class RestaurantCard extends StatelessWidget {
     required this.name,
     required this.cuisineType,
     required this.address,
-    this.photoUrl,
+    this.photoPath,
     this.isFavorite = false,
     this.onFavoriteTap,
     this.onTap,
@@ -17,7 +20,10 @@ class RestaurantCard extends StatelessWidget {
   final String name;
   final String cuisineType;
   final String address;
-  final String? photoUrl;
+
+  /// Absolute path to a local file.  Null or missing file → placeholder.
+  final String? photoPath;
+
   final bool isFavorite;
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onTap;
@@ -36,17 +42,13 @@ class RestaurantCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image
+            // ── Image ────────────────────────────────────────────────────────
             Stack(
               children: [
                 SizedBox(
                   height: 140,
                   width: double.infinity,
-                  child: photoUrl != null && photoUrl!.isNotEmpty
-                      ? Image.network(photoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder())
-                      : _placeholder(),
+                  child: _buildImage(),
                 ),
                 if (showAiBadge)
                   Positioned(
@@ -100,7 +102,7 @@ class RestaurantCard extends StatelessWidget {
                   ),
               ],
             ),
-            // Info
+            // ── Info ─────────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -118,7 +120,7 @@ class RestaurantCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(cuisineType,
@@ -146,10 +148,23 @@ class RestaurantCard extends StatelessWidget {
     );
   }
 
+  /// Shows the local file image if it exists on disk, otherwise the
+  /// placeholder — never crashes on a missing file.
+  Widget _buildImage() {
+    if (photoPath != null) {
+      final file = File(photoPath!);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover, width: double.infinity);
+      }
+    }
+    return _placeholder();
+  }
+
   Widget _placeholder() => Container(
         color: AppColors.grey100,
         child: const Center(
-          child: Icon(Icons.restaurant, color: AppColors.grey300, size: 48),
+          child:
+              Icon(Icons.restaurant, color: AppColors.grey300, size: 48),
         ),
       );
 }

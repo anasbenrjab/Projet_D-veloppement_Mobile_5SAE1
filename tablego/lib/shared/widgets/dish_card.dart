@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 
 class DishCard extends StatelessWidget {
@@ -8,7 +11,7 @@ class DishCard extends StatelessWidget {
     required this.price,
     required this.restaurantName,
     this.description,
-    this.photoUrl,
+    this.photoPath,
     this.isFavorite = false,
     this.onFavoriteTap,
     this.onTap,
@@ -18,7 +21,10 @@ class DishCard extends StatelessWidget {
   final double price;
   final String restaurantName;
   final String? description;
-  final String? photoUrl;
+
+  /// Absolute path to a local file.  Null or missing file → placeholder.
+  final String? photoPath;
+
   final bool isFavorite;
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onTap;
@@ -34,7 +40,7 @@ class DishCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Thumbnail
+            // ── Thumbnail ─────────────────────────────────────────────────
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
@@ -43,13 +49,10 @@ class DishCard extends StatelessWidget {
               child: SizedBox(
                 width: 90,
                 height: 90,
-                child: photoUrl != null && photoUrl!.isNotEmpty
-                    ? Image.network(photoUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder())
-                    : _placeholder(),
+                child: _buildImage(),
               ),
             ),
-            // Info
+            // ── Info ──────────────────────────────────────────────────────
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -78,7 +81,7 @@ class DishCard extends StatelessWidget {
                 ),
               ),
             ),
-            // Heart
+            // ── Heart ─────────────────────────────────────────────────────
             if (onFavoriteTap != null)
               Padding(
                 padding: const EdgeInsets.only(right: 12),
@@ -86,8 +89,9 @@ class DishCard extends StatelessWidget {
                   onTap: onFavoriteTap,
                   child: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color:
-                        isFavorite ? AppColors.primary : AppColors.grey500,
+                    color: isFavorite
+                        ? AppColors.primary
+                        : AppColors.grey500,
                     size: 22,
                   ),
                 ),
@@ -98,9 +102,21 @@ class DishCard extends StatelessWidget {
     );
   }
 
+  Widget _buildImage() {
+    if (photoPath != null) {
+      final file = File(photoPath!);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+    return _placeholder();
+  }
+
   Widget _placeholder() => Container(
         color: AppColors.grey100,
-        child: const Icon(Icons.fastfood,
-            color: AppColors.grey300, size: 32),
+        child: const Center(
+          child: Icon(Icons.fastfood,
+              color: AppColors.grey300, size: 32),
+        ),
       );
 }
