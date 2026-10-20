@@ -140,16 +140,25 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 
+  /// Stores a picked photo and returns the reference that was saved (a file
+  /// path on mobile, a `data:` URI on web).
+  ///
+  /// [sourcePath] is the picked file's path (mobile only); [bytes] carries the
+  /// image content and is what web stores in the `profile_photos` table.
   Future<String?> savePhoto({
-    required int    userId,
-    required String userType,
-    required String sourcePath,
+    required int       userId,
+    required String    userType,
+    required List<int> bytes,
+    String?            mimeType,
+    String?            sourcePath,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final path = await _repo.saveProfilePhoto(
+      final ref = await _repo.saveProfilePhoto(
         userId:     userId,
         userType:   userType,
+        bytes:      bytes,
+        mimeType:   mimeType,
         sourcePath: sourcePath,
       );
       // Reload so the screen shows the new photo immediately.
@@ -158,7 +167,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       } else {
         await loadRestaurantProfile(userId);
       }
-      return path;
+      return ref;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _parseError(e));
       return null;

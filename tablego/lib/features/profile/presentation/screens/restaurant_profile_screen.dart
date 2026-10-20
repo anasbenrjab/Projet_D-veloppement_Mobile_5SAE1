@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 
@@ -194,12 +193,13 @@ class _RestaurantProfileScreenState
     );
   }
 
-  /// Shows a local file image if the path exists on disk, otherwise the
-  /// placeholder — so the screen never crashes on a missing file.
+  /// Shows the photo when [path] resolves (file path on mobile, data URI on
+  /// web), otherwise the placeholder — so the screen never crashes on a
+  /// missing file.
   Widget _localOrPlaceholder(String path) {
-    final file = File(path);
-    if (file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover, width: double.infinity);
+    final image = photoImageProvider(path);
+    if (image != null) {
+      return Image(image: image, fit: BoxFit.cover, width: double.infinity);
     }
     return _placeholder();
   }

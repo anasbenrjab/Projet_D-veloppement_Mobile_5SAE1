@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -64,6 +63,8 @@ class _EditClientProfileScreenState
     await ref.read(profileProvider.notifier).savePhoto(
           userId:     userId,
           userType:   'client',
+          bytes:      await image.readAsBytes(),
+          mimeType:   image.mimeType,
           sourcePath: image.path,
         );
     if (mounted) {
@@ -112,12 +113,7 @@ class _EditClientProfileScreenState
 
     if (profile != null) _initFromProfile(profile);
 
-    final photoPath = profile?.photoPath;
-    ImageProvider? photoImage;
-    if (photoPath != null) {
-      final f = File(photoPath);
-      if (f.existsSync()) photoImage = FileImage(f);
-    }
+    final photoImage = photoImageProvider(profile?.photoPath);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Modifier le profil')),

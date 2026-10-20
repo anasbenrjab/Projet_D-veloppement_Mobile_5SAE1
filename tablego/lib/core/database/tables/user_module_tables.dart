@@ -9,6 +9,8 @@ library;
 
 import 'package:sqflite/sqflite.dart';
 
+import 'migration_v2_user.dart';
+
 class UserModuleTables {
   UserModuleTables._();
 
@@ -104,5 +106,10 @@ class UserModuleTables {
         FOREIGN KEY (dish_id)  REFERENCES dishes(id)  ON DELETE CASCADE
       )
     ''');
+
+    // ── v2 tables ──────────────────────────────────────────────────────────
+    // DDL lives in the migration file (single source of truth) and is invoked
+    // here so fresh databases — including web — get it too.  Idempotent.
+    await MigrationV2User.up(db);
   }
 }

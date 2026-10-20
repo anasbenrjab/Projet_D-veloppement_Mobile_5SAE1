@@ -1,8 +1,8 @@
 import 'dart:isolate';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 /// PBKDF2-HMAC-SHA256 password hashing.
 ///
@@ -18,7 +18,8 @@ import 'package:cryptography/cryptography.dart';
 ///   in `users.password_iterations` so it can be increased for new accounts
 ///   without breaking existing ones.
 /// - **Isolate**: hashing runs in [Isolate.run] so the UI thread never
-///   freezes during registration or login.
+///   freezes during registration or login.  Web has no isolates, so there
+///   PBKDF2 runs directly on the event loop instead (see [hash]/[verify]).
 /// - **Constant-time compare**: [verify] uses [SecretBox]-level byte
 ///   comparison to prevent timing attacks.
 class PasswordHasher {
@@ -45,8 +46,9 @@ class PasswordHasher {
 
   /// Hashes [password] with [saltHex] using PBKDF2-HMAC-SHA256.
   ///
-  /// Runs in a separate [Isolate] so the UI thread is never blocked.
-  /// Returns a lowercase hex string (64 characters).
+  /// Runs in a separate [Isolate] on mobile so the UI thread is never blocked;
+  /// on web (no isolates) it runs directly.  Returns a lowercase hex string
+  /// (64 characters).
   ///
   /// [iterations] defaults to [kPasswordIterations].  Pass the stored value
   /// when re-hashing an existing account with a different iteration count.
@@ -55,6 +57,7 @@ class PasswordHasher {
     String saltHex, {
     int iterations = kPasswordIterations,
   }) {
+    if (kIsWeb) return _deriveSync(password, saltHex, iterations);
     return Isolate.run(
       () => _deriveSync(password, saltHex, iterations),
     );
@@ -63,21 +66,25 @@ class PasswordHasher {
   /// Verifies [password] against [storedHashHex] using constant-time
   /// comparison to prevent timing attacks.
   ///
-  /// Runs in a separate [Isolate] — same cost as hashing, which is required
-  /// for timing-attack resistance (an attacker must not be able to distinguish
-  /// "wrong password → hash skipped" from "wrong password → hash compared").
+  /// Runs in a separate [Isolate] on mobile — same cost as hashing, which is
+  /// required for timing-attack resistance (an attacker must not be able to
+  /// distinguish "wrong password → hash skipped" from "wrong password → hash
+  /// compared").  On web it runs directly.
   static Future<bool> verify(
     String password,
     String saltHex,
     String storedHashHex, {
     int iterations = kPasswordIterations,
   }) {
+    if (kIsWeb) {
+      return _verifySync(password, saltHex, storedHashHex, iterations);
+    }
     return Isolate.run(
       () => _verifySync(password, saltHex, storedHashHex, iterations),
     );
   }
 
-  // ── Internal (runs inside Isolate) ────────────────────────────────────────
+  // ── Internal (runs inside Isolate on mobile, directly on web) ─────────────
 
   /// Synchronous derive — only called inside an Isolate.
   ///

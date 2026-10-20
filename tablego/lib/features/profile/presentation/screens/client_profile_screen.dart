@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 
@@ -149,9 +148,9 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
 
 // ── _Avatar ───────────────────────────────────────────────────────────────────
 
-/// Shows a local file photo when [photoPath] is set and the file exists.
-/// Falls back to the default icon if the path is null or the file is missing,
-/// so the screen never crashes when a file has been deleted externally.
+/// Shows the profile photo — a local file path on mobile, a `data:` URI on web.
+/// Falls back to the default icon when [photoPath] is null or unresolvable, so
+/// the screen never crashes when a file has been deleted externally.
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.photoPath, required this.radius});
 
@@ -160,11 +159,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ImageProvider? image;
-    if (photoPath != null) {
-      final file = File(photoPath!);
-      if (file.existsSync()) image = FileImage(file);
-    }
+    final image = photoImageProvider(photoPath);
 
     return CircleAvatar(
       radius: radius,

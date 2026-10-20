@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -62,6 +61,8 @@ class _EditRestaurantProfileScreenState
     await ref.read(profileProvider.notifier).savePhoto(
           userId:     userId,
           userType:   'restaurant',
+          bytes:      await image.readAsBytes(),
+          mimeType:   image.mimeType,
           sourcePath: image.path,
         );
     if (mounted) {
@@ -137,12 +138,15 @@ class _EditRestaurantProfileScreenState
                     itemCount: photoPaths.length,
                     separatorBuilder: (_, s) => const SizedBox(width: 8),
                     itemBuilder: (_, i) {
-                      final f = File(photoPaths[i]);
+                      final image = photoImageProvider(photoPaths[i]);
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: f.existsSync()
-                            ? Image.file(f,
-                                width: 80, height: 80, fit: BoxFit.cover)
+                        child: image != null
+                            ? Image(
+                                image: image,
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover)
                             : Container(
                                 width: 80,
                                 height: 80,

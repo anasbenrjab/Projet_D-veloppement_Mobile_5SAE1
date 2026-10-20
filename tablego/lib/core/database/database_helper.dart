@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'seeds/dev_seed.dart';
+import 'tables/migration_v2_user.dart';
 import 'tables/shared_tables.dart';
 import 'tables/user_module_tables.dart';
 
@@ -14,19 +15,17 @@ import 'tables/user_module_tables.dart';
 /// [_onCreate] below.
 ///
 /// ## Schema versioning rule
-/// During active development [_dbVersion] stays at 1.  Once the team
-/// freezes the initial schema (first demo / integration sprint), any
-/// subsequent schema change must:
-///   1. Create a new DDL helper (e.g. `migration_v2_orders.dart`).
-///   2. Bump [_dbVersion] by 1.
-///   3. Add a guarded call in [_onUpgrade].
-/// Never modify the existing table files retroactively.
+/// Every schema change:
+///   1. Creates a new DDL helper (e.g. `migration_v2_user.dart`).
+///   2. Bumps [_dbVersion] by 1.
+///   3. Adds a guarded call in [_onUpgrade].
+/// Never modify the existing table files retroactively.  (v2 added
+/// `profile_photos`, which stores photo BLOBs for the web build.)
 class DatabaseHelper {
   static const String _dbName = 'tablego.db';
 
-  // Bump this only after the team freezes the schema.
-  // See class doc for the versioning rule.
-  static const int _dbVersion = 1;
+  // Bump this for every schema change.  See class doc for the versioning rule.
+  static const int _dbVersion = 2;
 
   // ── Singleton ─────────────────────────────────────────────────────────────
   DatabaseHelper._internal();
@@ -58,7 +57,10 @@ class DatabaseHelper {
 
   // ── Initialisation ────────────────────────────────────────────────────────
   Future<Database> _initDb() async {
-    final dbPath = join(await getDatabasesPath(), _dbName);
+    // Web (sqflite_common_ffi_web) keys databases by name inside IndexedDB —
+    // there is no filesystem path.  Mobile keeps the on-device path.
+    final dbPath =
+        kIsWeb ? _dbName : join(await getDatabasesPath(), _dbName);
     return openDatabase(
       dbPath,
       version: _dbVersion,
@@ -98,19 +100,14 @@ class DatabaseHelper {
     }
   }
 
-  /// Reserved for post-freeze schema changes.
+  /// Applies post-freeze schema changes, one guarded block per version bump.
   ///
-  /// Rule: add a guarded block for each version increment.
-  /// Example (do not uncomment until needed):
-  ///
-  /// ```dart
-  /// if (oldVersion < 2) {
-  ///   await MigrationV2Orders.up(db);
-  /// }
-  /// ```
+  /// Each migration is idempotent (`IF NOT EXISTS`), so re-running is safe.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // No upgrades defined while _dbVersion == 1.
-    // See class-level doc for the team versioning rule.
+    if (oldVersion < 2) {
+      // v2: `profile_photos` (web photo bytes).
+      await MigrationV2User.up(db);
+    }
   }
 
   // ── Utility ───────────────────────────────────────────────────────────────

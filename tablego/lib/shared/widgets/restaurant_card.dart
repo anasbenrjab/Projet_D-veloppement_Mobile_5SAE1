@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/photo_ref.dart';
 
 class RestaurantCard extends StatelessWidget {
   const RestaurantCard({
@@ -21,7 +20,8 @@ class RestaurantCard extends StatelessWidget {
   final String cuisineType;
   final String address;
 
-  /// Absolute path to a local file.  Null or missing file → placeholder.
+  /// Absolute path to a local file on mobile, or a data URI on web.  Null or
+  /// unresolvable → placeholder.
   final String? photoPath;
 
   final bool isFavorite;
@@ -148,14 +148,12 @@ class RestaurantCard extends StatelessWidget {
     );
   }
 
-  /// Shows the local file image if it exists on disk, otherwise the
-  /// placeholder — never crashes on a missing file.
+  /// Shows the resolved photo if there is one, otherwise the placeholder —
+  /// never crashes on a missing file or unresolvable reference.
   Widget _buildImage() {
-    if (photoPath != null) {
-      final file = File(photoPath!);
-      if (file.existsSync()) {
-        return Image.file(file, fit: BoxFit.cover, width: double.infinity);
-      }
+    final image = photoImageProvider(photoPath);
+    if (image != null) {
+      return Image(image: image, fit: BoxFit.cover, width: double.infinity);
     }
     return _placeholder();
   }

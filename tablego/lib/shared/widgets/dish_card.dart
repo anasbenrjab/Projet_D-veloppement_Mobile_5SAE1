@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/photo_ref.dart';
 
 class DishCard extends StatelessWidget {
   const DishCard({
@@ -22,7 +21,8 @@ class DishCard extends StatelessWidget {
   final String restaurantName;
   final String? description;
 
-  /// Absolute path to a local file.  Null or missing file → placeholder.
+  /// Absolute path to a local file on mobile, or a data URI on web.  Null or
+  /// unresolvable → placeholder.
   final String? photoPath;
 
   final bool isFavorite;
@@ -103,11 +103,9 @@ class DishCard extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    if (photoPath != null) {
-      final file = File(photoPath!);
-      if (file.existsSync()) {
-        return Image.file(file, fit: BoxFit.cover);
-      }
+    final image = photoImageProvider(photoPath);
+    if (image != null) {
+      return Image(image: image, fit: BoxFit.cover);
     }
     return _placeholder();
   }

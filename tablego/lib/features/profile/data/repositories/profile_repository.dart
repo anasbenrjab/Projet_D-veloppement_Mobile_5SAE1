@@ -1,13 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/utils/photo_files.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../domain/profile_exception.dart';
 import '../models/client_profile_model.dart';
 import '../models/restaurant_profile_model.dart';
@@ -55,6 +55,10 @@ class ProfileRepository {
     if (row['user_type'] != 'client') {
       throw const ProfileException('Ce compte n\'est pas un compte client');
     }
+    // Web keeps the bytes in `profile_photos`; surface them as a data URI so
+    // the UI can render them with Image.memory.
+    final refs = await _webPhotoRefs(userId, 'client');
+    if (refs.isNotEmpty) row['photo_path'] = refs.first;
     return ClientProfileModel.fromMap(row);
   }
 
@@ -117,6 +121,9 @@ class ProfileRepository {
       throw const ProfileException(
           'Ce compte n\'est pas un compte restaurant');
     }
+    // Web keeps the bytes in `profile_photos`; surface them as data URIs.
+    final refs = await _webPhotoRefs(userId, 'restaurant');
+    if (refs.isNotEmpty) row['photo_paths'] = jsonEncode(refs);
     return RestaurantProfileModel.fromMap(row);
   }
 
@@ -162,20 +169,38 @@ class ProfileRepository {
 
   // ── Photo management ──────────────────────────────────────────────────────
 
-  /// Copies [sourcePath] into `<documents>/profile_photos/` with a UUID
-  /// filename, writes the new path to the DB, then deletes the old file
-  /// (client only — old path replaced) after the DB write succeeds.
+  /// Stores a picked photo and returns the reference written for the profile.
   ///
-  /// Returns the absolute path of the saved file.
+  /// **Mobile** — [sourcePath] is copied into `<documents>/profile_photos/`
+  /// with a UUID filename, the new path replaces `client_profiles.photo_path`
+  /// (single photo) or is appended to `restaurant_profiles.photo_paths`, and
+  /// the previous client file is deleted after the DB write succeeds.
   ///
-  /// If the stored file no longer exists at read time the caller should
-  /// fall back to the default avatar — this method only handles writes.
+  /// **Web** — there is no file system, so [bytes] are inserted into the
+  /// `profile_photos` table and returned as a `data:` URI; [sourcePath] is
+  /// ignored.
   Future<String> saveProfilePhoto({
-    required int    userId,
-    required String userType,
-    required String sourcePath,
+    required int       userId,
+    required String    userType,
+    required List<int> bytes,
+    String?            mimeType,
+    String?            sourcePath,
   }) async {
-    final destPath = await _copyPhotoToDocuments(sourcePath);
+    if (kIsWeb) {
+      return _saveWebPhoto(
+        userId:   userId,
+        userType: userType,
+        bytes:    bytes,
+        mimeType: mimeType ?? _guessImageMime(sourcePath),
+      );
+    }
+
+    final source = sourcePath;
+    if (source == null || source.isEmpty) {
+      throw const ProfileException('Photo introuvable');
+    }
+
+    final destPath = await copyPhotoToDocuments(source);
     final db       = await _database;
     final now      = DateTime.now().toUtc().toIso8601String();
 
@@ -198,7 +223,7 @@ class ProfileRepository {
       );
 
       // Delete old file only after the DB write succeeds.
-      if (oldPath != null) await _deleteFileIfExists(oldPath);
+      if (oldPath != null) await deleteStoredPhoto(oldPath);
     } else {
       // Restaurant: append to the JSON photo_paths array.
       final rows = await db.query(
@@ -224,6 +249,93 @@ class ProfileRepository {
     }
 
     return destPath;
+  }
+
+  // ── Web photo storage ─────────────────────────────────────────────────────
+
+  /// Inserts [bytes] into `profile_photos` and returns the resulting data URI.
+  ///
+  /// A client has a single photo, so any previous row is replaced first —
+  /// mirroring the "overwrite the path" behaviour on mobile.
+  Future<String> _saveWebPhoto({
+    required int       userId,
+    required String    userType,
+    required List<int> bytes,
+    required String    mimeType,
+  }) async {
+    final db  = await _database;
+    final now = DateTime.now().toUtc().toIso8601String();
+    final blob = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+
+    if (userType == 'client') {
+      await db.delete(
+        'profile_photos',
+        where: 'user_id = ? AND user_type = ?',
+        whereArgs: [userId, 'client'],
+      );
+    }
+
+    final res = await db.rawQuery(
+      'SELECT COALESCE(MAX(position), -1) + 1 AS next_position '
+      'FROM profile_photos WHERE user_id = ? AND user_type = ?',
+      [userId, userType],
+    );
+    final position = (res.first['next_position'] as int?) ?? 0;
+
+    await db.insert('profile_photos', {
+      'user_id':    userId,
+      'user_type':  userType,
+      'position':   position,
+      'mime_type':  mimeType,
+      'data':       blob,
+      'created_at': now,
+    });
+
+    // Keep `updated_at` meaningful on the owning profile row.
+    await db.update(
+      userType == 'client' ? 'client_profiles' : 'restaurant_profiles',
+      {'updated_at': now},
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+
+    return encodePhotoDataUri(mimeType, blob);
+  }
+
+  /// Reads `profile_photos` rows back as `data:` URIs, ordered by position.
+  ///
+  /// Returns an empty list on mobile — there the photo reference is a file
+  /// path already stored in the profile row.
+  Future<List<String>> _webPhotoRefs(int userId, String userType) async {
+    if (!kIsWeb) return const [];
+    final db = await _database;
+    final rows = await db.query(
+      'profile_photos',
+      columns: ['mime_type', 'data'],
+      where: 'user_id = ? AND user_type = ?',
+      whereArgs: [userId, userType],
+      orderBy: 'position ASC, id ASC',
+    );
+    return rows.map((row) {
+      final mime  = (row['mime_type'] as String?) ?? 'image/jpeg';
+      final data  = row['data'];
+      final bytes = data is Uint8List
+          ? data
+          : Uint8List.fromList((data as List).cast<int>());
+      return encodePhotoDataUri(mime, bytes);
+    }).toList();
+  }
+
+  /// Best-effort MIME type from a file name/extension; defaults to JPEG, which
+  /// is only cosmetic — the decoder sniffs the real format from the bytes.
+  String _guessImageMime(String? pathOrName) {
+    switch (p.extension(pathOrName ?? '').toLowerCase()) {
+      case '.png':  return 'image/png';
+      case '.gif':  return 'image/gif';
+      case '.webp': return 'image/webp';
+      case '.bmp':  return 'image/bmp';
+      default:      return 'image/jpeg';
+    }
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -278,28 +390,6 @@ class ProfileRepository {
     if (description != null && description.length > _kMaxDescLength) {
       throw ProfileException(
           'La description ne peut pas dépasser $_kMaxDescLength caractères');
-    }
-  }
-
-  Future<String> _copyPhotoToDocuments(String sourcePath) async {
-    final docsDir   = await getApplicationDocumentsDirectory();
-    final photosDir = Directory(p.join(docsDir.path, 'profile_photos'));
-    if (!photosDir.existsSync()) await photosDir.create(recursive: true);
-
-    final ext      = p.extension(sourcePath); // e.g. '.jpg'
-    final filename = '${const Uuid().v4()}$ext';
-    final destPath = p.join(photosDir.path, filename);
-
-    await File(sourcePath).copy(destPath);
-    return destPath;
-  }
-
-  Future<void> _deleteFileIfExists(String path) async {
-    try {
-      final f = File(path);
-      if (await f.exists()) await f.delete();
-    } catch (_) {
-      // Best-effort — do not propagate file-deletion errors.
     }
   }
 }

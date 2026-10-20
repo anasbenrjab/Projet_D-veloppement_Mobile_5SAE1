@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/routes.dart';
+import 'core/database/web_database_factory.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
@@ -16,6 +17,10 @@ import 'features/profile/presentation/screens/edit_restaurant_profile_screen.dar
 import 'features/favorites/presentation/screens/favorites_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // On web this switches sqflite to the sqlite3-wasm factory; it is a no-op on
+  // mobile (see the conditional import).  Must run before the DB is opened.
+  configureWebDatabaseFactory();
   runApp(const ProviderScope(child: TableGoApp()));
 }
 
