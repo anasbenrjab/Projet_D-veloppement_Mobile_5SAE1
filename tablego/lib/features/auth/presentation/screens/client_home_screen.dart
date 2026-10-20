@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../favorites/providers/favorites_provider.dart';
 import '../../../profile/providers/profile_provider.dart';
@@ -31,11 +32,11 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
   void _onNavTap(int index) {
     if (index == 2) {
-      Navigator.of(context).pushNamed('/favorites');
+      Navigator.of(context).pushNamed(Routes.favorites);
       return;
     }
     if (index == 4) {
-      Navigator.of(context).pushNamed('/profile');
+      Navigator.of(context).pushNamed(Routes.profile);
       return;
     }
     setState(() => _selectedIndex = index);
@@ -82,7 +83,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                         ),
                         GestureDetector(
                           onTap: () =>
-                              Navigator.of(context).pushNamed('/profile'),
+                              Navigator.of(context).pushNamed(Routes.profile),
                           child: CircleAvatar(
                             radius: 22,
                             backgroundColor:
@@ -204,6 +205,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 // ── _NearbyList ───────────────────────────────────────────────────────────────
 // TODO(module-2): replace with actual nearby/search API.
 // Currently uses the current user's favorite restaurants as placeholder data.
+// TODO(team): replace placeholder with nearby restaurants feature
 class _NearbyList extends ConsumerWidget {
   const _NearbyList();
 

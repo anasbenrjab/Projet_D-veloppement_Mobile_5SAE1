@@ -1,5 +1,4 @@
-import '../../data/models/restaurant_recommendation_model.dart';
-import '../../../favorites/data/models/restaurant_summary_model.dart';
+import '../../favorites/data/models/restaurant_summary_model.dart';
 
 /// Minimal dish info needed only for scoring — no DB model dependency.
 class DishForScoring {
@@ -20,29 +19,46 @@ class DishForScoring {
   final List<String> tags;
 }
 
-/// Pure scoring logic ported from `recommendations.controller.js`.
+/// Result of scoring one restaurant.
+class ScoredRestaurant {
+  const ScoredRestaurant({
+    required this.restaurant,
+    required this.score,
+    this.matchingDishes = const [],
+  });
+
+  final RestaurantSummaryModel restaurant;
+  final int score;
+  final List<DishForScoring> matchingDishes;
+
+  // Convenience forwarding getters so widgets never need to drill into .restaurant.
+  int    get id           => restaurant.id;
+  String get name         => restaurant.name;
+  String get address      => restaurant.address;
+  String get cuisineType  => restaurant.cuisineType;
+  String? get firstPhotoPath => restaurant.firstPhotoPath;
+}
+
+/// Pure scoring logic — no DB access, fully unit-testable.
 ///
-/// No database access — all inputs are pre-loaded by [RecommendationsRepository].
-/// Static method only so it is trivially unit-testable.
+/// Ported verbatim from `tablego-backend/src/controllers/recommendations.controller.js`.
 ///
-/// ## Scoring weights (identical to backend)
+/// ## Weights
 /// - +3 per past order at this restaurant
 /// - +5 if the restaurant is in the user's favorites
-/// - +2 per dish whose tags include a user dietary preference
+/// - +2 per dish whose tags contain a user dietary preference
 ///
-/// ## Empty data behaviour
-/// If [restaurants] is empty, returns [].
-/// If all scores are 0 (no history / no prefs / no favorites), returns all
-/// restaurants sorted alphabetically — a sensible default rather than an
-/// arbitrary order.
+/// ## Default order
+/// When all scores are 0 (no history, no prefs, no favorites), restaurants
+/// are returned alphabetically by name rather than in an arbitrary order.
 class RecommendationService {
   RecommendationService._();
 
-  static List<RestaurantRecommendationModel> score({
+  static List<ScoredRestaurant> score({
     required List<RestaurantSummaryModel> restaurants,
     required List<DishForScoring>         allDishes,
     required List<String>                 userPreferences,
-    required Map<int, int>                orderFrequency,   // restaurantId → count
+    required Map<int, int>                orderFrequency,
     required Set<int>                     favoriteIds,
   }) {
     if (restaurants.isEmpty) return const [];
@@ -53,12 +69,12 @@ class RecommendationService {
       dishesByRestaurant.putIfAbsent(d.restaurantId, () => []).add(d);
     }
 
-    final scored = restaurants.map((r) {
+    final List<ScoredRestaurant> scored = restaurants.map((r) {
       var s = 0;
       s += (orderFrequency[r.id] ?? 0) * 3;
       if (favoriteIds.contains(r.id)) s += 5;
 
-      final rDishes = dishesByRestaurant[r.id] ?? [];
+      final rDishes = dishesByRestaurant[r.id] ?? <DishForScoring>[];
       for (final dish in rDishes) {
         for (final pref in userPreferences) {
           if (dish.tags.contains(pref)) s += 2;
@@ -70,15 +86,14 @@ class RecommendationService {
           .take(3)
           .toList();
 
-      return RestaurantRecommendationModel(
-        restaurant:    r,
-        score:         s,
+      return ScoredRestaurant(
+        restaurant:     r,
+        score:          s,
         matchingDishes: matching,
       );
     }).toList();
 
-    // Primary sort: score descending.
-    // Secondary sort: name ascending (stable default when all scores are 0).
+    // Primary: score descending. Secondary: name ascending (stable default).
     scored.sort((a, b) {
       final cmp = b.score.compareTo(a.score);
       return cmp != 0 ? cmp : a.name.compareTo(b.name);

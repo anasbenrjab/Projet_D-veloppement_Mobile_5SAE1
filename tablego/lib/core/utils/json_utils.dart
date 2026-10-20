@@ -2,8 +2,8 @@ import 'dart:convert';
 
 /// Parses a value that may be:
 ///   - null                          → returns []
-///   - a real List                   → returns List<String>
-///   - a JSON-encoded String array   → decodes and returns List<String>
+///   - a real List                   → returns `List<String>`
+///   - a JSON-encoded String array   → decodes and returns `List<String>`
 ///   - anything else                 → returns []
 ///
 /// Use for: dietary_preferences, allergies, photos, tags
@@ -25,8 +25,8 @@ List<String> parseStringList(dynamic value) {
 
 /// Parses a value that may be:
 ///   - null                          → returns {}
-///   - a real Map                    → returns Map<String, dynamic>
-///   - a JSON-encoded String object  → decodes and returns Map<String, dynamic>
+///   - a real Map                    → returns `Map<String, dynamic>`
+///   - a JSON-encoded String object  → decodes and returns `Map<String, dynamic>`
 ///   - anything else                 → returns {}
 ///
 /// Use for: opening_hours

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
@@ -57,7 +58,7 @@ class _RestaurantProfileScreenState
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
               await Navigator.of(context)
-                  .pushNamed('/edit-restaurant-profile');
+                  .pushNamed(Routes.editRestaurantProfile);
               _load();
             },
           ),
@@ -180,7 +181,7 @@ class _RestaurantProfileScreenState
                       await ref.read(authProvider.notifier).logout();
                       if (context.mounted) {
                         Navigator.of(context)
-                            .pushReplacementNamed('/login');
+                            .pushReplacementNamed(Routes.login);
                       }
                     },
                   ),

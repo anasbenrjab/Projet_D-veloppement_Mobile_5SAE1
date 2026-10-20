@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
@@ -56,7 +57,7 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
-              await Navigator.of(context).pushNamed('/edit-client-profile');
+              await Navigator.of(context).pushNamed(Routes.editClientProfile);
               _load();
             },
           ),
@@ -289,8 +290,8 @@ class _MenuList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = [
-      (Icons.favorite_border,  'Mes favoris',           '/favorites'),
-      (Icons.lock_outline,     'Changer le mot de passe', '/change-password'),
+      (Icons.favorite_border,  'Mes favoris',           Routes.favorites),
+      (Icons.lock_outline,     'Changer le mot de passe', Routes.changePassword),
       (Icons.help_outline,     'Aide & Support',         null),
       (Icons.logout,           'Se déconnecter',         null),
     ];
@@ -308,7 +309,7 @@ class _MenuList extends ConsumerWidget {
                   if (item.$2 == 'Se déconnecter') {
                     await ref.read(authProvider.notifier).logout();
                     if (context.mounted) {
-                      Navigator.of(context).pushReplacementNamed('/login');
+                      Navigator.of(context).pushReplacementNamed(Routes.login);
                     }
                   } else if (item.$3 != null) {
                     Navigator.of(context).pushNamed(item.$3!);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -33,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     final state = ref.read(authProvider);
     if (state.isLoggedIn) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      Navigator.of(context).pushReplacementNamed(Routes.home);
     } else if (state.error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(state.error!)));
@@ -92,7 +94,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () => Navigator.of(context)
-                        .pushNamed('/forgot-password'),
+                        .pushNamed(Routes.forgotPassword),
                     child: const Text('Mot de passe oublié ?',
                         style: TextStyle(color: AppColors.primary)),
                   ),
@@ -138,7 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const Text("Pas encore de compte ?"),
                     TextButton(
                       onPressed: () =>
-                          Navigator.of(context).pushNamed('/register'),
+                          Navigator.of(context).pushNamed(Routes.register),
                       child: const Text('S\'inscrire',
                           style: TextStyle(
                               color: AppColors.primary,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 
@@ -28,7 +29,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     final isLoggedIn = ref.read(authProvider).isLoggedIn;
     Navigator.of(context).pushReplacementNamed(
-      isLoggedIn ? '/home' : '/login',
+      isLoggedIn ? Routes.home : Routes.login,
     );
   }
 

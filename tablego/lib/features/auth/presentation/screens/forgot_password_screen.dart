@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -264,7 +265,7 @@ class _ForgotPasswordScreenState
           AppButton(
             label: 'Retour à la connexion',
             onPressed: () => Navigator.of(context)
-                .pushReplacementNamed('/login'),
+                .pushReplacementNamed(Routes.login),
           ),
         ],
       );

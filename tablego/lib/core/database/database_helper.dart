@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'seeds/dev_seed.dart';
 import 'tables/shared_tables.dart';
 import 'tables/user_module_tables.dart';
 
@@ -88,6 +89,9 @@ class DatabaseHelper {
     // Shared tables: dishes, order_history
     // Defined here for FK integrity; content managed by the orders module.
     await SharedTables.create(db);
+
+    // Seed test data in debug builds only — no-op in release.
+    await DevSeed.run(db);
 
     if (kDebugMode) {
       debugPrint('[DB] Database created at version $version');

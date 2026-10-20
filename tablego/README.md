@@ -6,7 +6,7 @@ Flutter 3.x mobile app — Module 1: Utilisateur.
 - Flutter SDK >= 3.13
 - Dart >= 3.x
 - Android emulator or iOS simulator
-- Backend running at localhost:3000 (see tablego-backend)
+- Local SQLite database (sqflite + Riverpod) — no backend required
 
 ## Setup
 
@@ -27,10 +27,6 @@ flutter run -d ios
 flutter run -d chrome
 ```
 
-Base URL is auto-detected:
-- Android emulator → `http://10.0.2.2:3000/api`
-- iOS/Web → `http://localhost:3000/api`
-
 ## Architecture
 
 ```
@@ -38,8 +34,8 @@ lib/
 ├── main.dart                    ← App entry + routing
 ├── core/
 │   ├── theme/                   ← AppColors, AppTheme (Poppins font)
-│   ├── network/api_client.dart  ← Dio + JWT interceptor
-│   └── constants/               ← API endpoint strings
+│   ├── database/                ← DatabaseHelper, tables, dev seed (sqflite)
+│   └── constants/               ← Route name constants
 ├── features/
 │   ├── auth/                    ← Login, Register, ForgotPassword, SplashScreen
 │   ├── profile/                 ← Client & Restaurant profile screens
@@ -61,7 +57,7 @@ lib/
 | Restaurant | resto@test.com      | password123 |
 
 ## Screens Built
-1. SplashScreen — auto-login if JWT exists
+1. SplashScreen — auto-login if a local session exists
 2. LoginScreen — email/password + social placeholders
 3. RegisterScreen — client/restaurant toggle
 4. ForgotPasswordScreen — email input → success state

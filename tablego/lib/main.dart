@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/constants/routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
@@ -29,19 +30,19 @@ class TableGoApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
-      initialRoute: '/',
+      initialRoute: Routes.splash,
       routes: {
-        '/':                          (_) => const SplashScreen(),
-        '/login':                     (_) => const LoginScreen(),
-        '/register':                  (_) => const RegisterScreen(),
-        '/forgot-password':           (_) => const ForgotPasswordScreen(),
-        '/change-password':           (_) => const ChangePasswordScreen(),
-        '/home':                      (_) => const ClientHomeScreen(),
-        '/profile':                   (_) => const _ProfileRouter(),
-        '/edit-client-profile':       (_) => const EditClientProfileScreen(),
-        '/restaurant-profile':        (_) => const RestaurantProfileScreen(),
-        '/edit-restaurant-profile':   (_) => const EditRestaurantProfileScreen(),
-        '/favorites':                 (_) => const FavoritesScreen(),
+        Routes.splash:                (_) => const SplashScreen(),
+        Routes.login:                 (_) => const LoginScreen(),
+        Routes.register:              (_) => const RegisterScreen(),
+        Routes.forgotPassword:        (_) => const ForgotPasswordScreen(),
+        Routes.changePassword:        (_) => const ChangePasswordScreen(),
+        Routes.home:                  (_) => const ClientHomeScreen(),
+        Routes.profile:               (_) => const _ProfileRouter(),
+        Routes.editClientProfile:     (_) => const EditClientProfileScreen(),
+        Routes.restaurantProfile:     (_) => const RestaurantProfileScreen(),
+        Routes.editRestaurantProfile: (_) => const EditRestaurantProfileScreen(),
+        Routes.favorites:             (_) => const FavoritesScreen(),
       },
     );
   }
