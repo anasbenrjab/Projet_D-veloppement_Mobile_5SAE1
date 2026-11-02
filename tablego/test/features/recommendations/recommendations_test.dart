@@ -207,7 +207,6 @@ void main() {
       final storage = _FakeStorage();
       final auth    = AuthRepository(dbHelper: helper, storage: storage);
       final repo    = RecommendationsRepository(dbHelper: helper);
-      final db      = await helper.database;
 
       final client = await auth.register(
         email: 'empty@reco.test', password: 'Password1!',
@@ -216,16 +215,13 @@ void main() {
 
       // Two restaurants, no order history
       for (final name in ['Zara Bistro', 'Alpha Grill']) {
-        final r = await auth.register(
+        // Registered only — no history or favorites needed for this test.
+        await auth.register(
           email: '${name.toLowerCase().replaceAll(' ', '')}@reco.test',
           password: 'Password1!', userType: 'restaurant',
           resetQuestion: 'Q?', resetAnswer: 'A',
           restaurantName: name,
         );
-        final rpRows = await db.query('restaurant_profiles',
-            columns: ['id'], where: 'user_id = ?',
-            whereArgs: [r.id], limit: 1);
-        // registered — no history or favorites needed for this test
       }
 
       final results = await repo.getRecommendations(client.id);

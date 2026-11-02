@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -5,7 +7,9 @@ import 'package:tablego/core/database/database_helper.dart';
 import 'package:tablego/core/database/seeds/dev_seed.dart';
 import 'package:tablego/core/database/tables/shared_tables.dart';
 import 'package:tablego/core/database/tables/user_module_tables.dart';
+import 'package:tablego/core/utils/photo_ref.dart';
 import 'package:tablego/features/auth/data/repositories/auth_repository.dart';
+import 'package:tablego/features/profile/data/models/restaurant_profile_model.dart';
 
 // ── Fake storage ──────────────────────────────────────────────────────────────
 
@@ -83,5 +87,94 @@ void main() {
     await DevSeed.run(db);
     final count = await db.query('users', columns: ['id']);
     expect(count.length, equals(4));
+  });
+
+  group('seed photos', () {
+    Future<String?> clientPhoto(Database db) async {
+      final rows = await db.rawQuery('''
+        SELECT cp.photo_path FROM client_profiles cp
+          JOIN users u ON u.id = cp.user_id
+         WHERE u.email = 'client@test.com'
+      ''');
+      return rows.single['photo_path'] as String?;
+    }
+
+    Future<List<String>> restaurantPhotos(Database db, String email) async {
+      final rows = await db.rawQuery('''
+        SELECT rp.photo_paths FROM restaurant_profiles rp
+          JOIN users u ON u.id = rp.user_id
+         WHERE u.email = ?
+      ''', [email]);
+      return RestaurantProfileModel.decodeList(rows.single['photo_paths']);
+    }
+
+    test('fresh DB → Alice, every restaurant and every dish have a photo',
+        () async {
+      final db = await _freshSeededDb();
+
+      expect(await clientPhoto(db),
+          equals('assets/images/seed/avatars/alice.jpg'));
+      for (final email in [
+        'resto@test.com',
+        'burgerking@test.com',
+        'sushi@test.com',
+      ]) {
+        expect(await restaurantPhotos(db, email), hasLength(3),
+            reason: email);
+      }
+      final dishes = await db.query('dishes', columns: ['name', 'photo_path']);
+      expect(dishes, hasLength(5));
+      for (final d in dishes) {
+        expect(d['photo_path'], startsWith('assets/images/seed/dishes/'),
+            reason: d['name'] as String);
+      }
+    });
+
+    test('every seed photo exists in a folder bundled by pubspec.yaml', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      for (final asset in seedPhotoAssets) {
+        expect(File(asset).existsSync(), isTrue, reason: '$asset missing');
+        final folder = asset.substring(0, asset.lastIndexOf('/') + 1);
+        expect(pubspec, contains('- $folder'),
+            reason: '$folder not declared in pubspec.yaml');
+      }
+      for (final placeholder in [
+        kRestaurantPlaceholderAsset,
+        kDishPlaceholderAsset,
+      ]) {
+        expect(File(placeholder).existsSync(), isTrue,
+            reason: '$placeholder missing');
+      }
+    });
+
+    test('backfill fills missing photos and keeps user-set ones', () async {
+      final db = await _freshSeededDb();
+
+      // Simulate a database seeded before the photos existed, where the
+      // client has since uploaded a photo of their own.
+      await db.update('client_profiles', {'photo_path': '/docs/mine.jpg'});
+      await db.update('restaurant_profiles', {'photo_paths': null});
+      await db.update('dishes', {'photo_path': null});
+
+      await DevSeed.applySeedPhotos(db);
+
+      expect(await clientPhoto(db), equals('/docs/mine.jpg'));
+      expect(await restaurantPhotos(db, 'sushi@test.com'), [
+        'assets/images/seed/restaurants/sushi_1.jpg',
+        'assets/images/seed/restaurants/sushi_2.jpg',
+        'assets/images/seed/restaurants/sushi_3.jpg',
+      ]);
+      final soup = await db.query('dishes',
+          columns: ['photo_path'],
+          where: 'name = ?',
+          whereArgs: ["Soupe à l'oignon"]);
+      expect(soup.single['photo_path'],
+          equals('assets/images/seed/dishes/soupe_oignon.jpg'));
+
+      // Idempotent: nothing left to update on a second pass.
+      final before = await db.query('restaurant_profiles');
+      await DevSeed.applySeedPhotos(db);
+      expect(await db.query('restaurant_profiles'), equals(before));
+    });
   });
 }

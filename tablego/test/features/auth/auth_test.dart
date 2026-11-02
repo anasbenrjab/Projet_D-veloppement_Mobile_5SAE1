@@ -123,7 +123,9 @@ void main() {
   // ── register ───────────────────────────────────────────────────────────────
   group('AuthRepository.register', () {
     test('registers a client and creates client_profiles row', () async {
-      final repo = await _buildRepo();
+      final helper = await buildTestDb();
+      final repo   =
+          AuthRepository(dbHelper: helper, storage: _FakeSecureStorage());
       final user = await repo.register(
         email:         _email,
         password:      _password,
@@ -137,9 +139,13 @@ void main() {
       expect(user.isActive, isTrue);
 
       // Verify profile row was created.
-      final db     = await (await buildTestDb()).database;
-      // We can't share the same in-memory DB across repo instances, so query
-      // via the repo's own db.  Use a fresh call on the same helper.
+      final db   = await helper.database;
+      final rows = await db.query(
+        'client_profiles',
+        where: 'user_id = ?',
+        whereArgs: [user.id],
+      );
+      expect(rows.length, equals(1));
     });
 
     test('registers a restaurant and creates restaurant_profiles row',
