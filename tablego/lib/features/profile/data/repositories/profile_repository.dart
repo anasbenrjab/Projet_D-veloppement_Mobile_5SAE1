@@ -11,6 +11,7 @@ import '../../../../core/utils/photo_ref.dart';
 import '../../domain/profile_exception.dart';
 import '../models/client_profile_model.dart';
 import '../models/restaurant_profile_model.dart';
+import '../uploaded_photos.dart';
 
 // ── Validation constants ──────────────────────────────────────────────────────
 
@@ -312,28 +313,14 @@ class ProfileRepository {
     return encodePhotoDataUri(mimeType, blob);
   }
 
-  /// Reads `profile_photos` rows back as `data:` URIs, ordered by position.
+  /// Reads the user's web uploads back as `data:` URIs, ordered by position.
   ///
-  /// Returns an empty list on mobile — there the photo reference is a file
-  /// path already stored in the profile row.
+  /// Empty on mobile, where uploads are file paths stored in the profile row
+  /// and `profile_photos` is never written.
   Future<List<String>> _webPhotoRefs(int userId, String userType) async {
-    if (!kIsWeb) return const [];
     final db = await _database;
-    final rows = await db.query(
-      'profile_photos',
-      columns: ['mime_type', 'data'],
-      where: 'user_id = ? AND user_type = ?',
-      whereArgs: [userId, userType],
-      orderBy: 'position ASC, id ASC',
-    );
-    return rows.map((row) {
-      final mime  = (row['mime_type'] as String?) ?? 'image/jpeg';
-      final data  = row['data'];
-      final bytes = data is Uint8List
-          ? data
-          : Uint8List.fromList((data as List).cast<int>());
-      return encodePhotoDataUri(mime, bytes);
-    }).toList();
+    final refs = await UploadedPhotos.refsByUser(db, userType, [userId]);
+    return refs[userId] ?? const [];
   }
 
   /// Best-effort MIME type from a file name/extension; defaults to JPEG, which

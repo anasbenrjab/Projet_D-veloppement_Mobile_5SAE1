@@ -5,6 +5,7 @@ import '../../../../core/database/database_helper.dart';
 import '../../domain/recommendation_service.dart';
 import '../../../favorites/data/models/restaurant_summary_model.dart';
 import '../../../profile/data/models/restaurant_profile_model.dart';
+import '../../../profile/data/uploaded_photos.dart';
 
 class RecommendationsRepository {
   RecommendationsRepository({DatabaseHelper? dbHelper})
@@ -56,18 +57,19 @@ class RecommendationsRepository {
     // 4. All active restaurants (same SELECT as backend)
     final restRows = await db.rawQuery(
       '''
-      SELECT rp.id, rp.name, rp.address, rp.latitude, rp.longitude,
-             rp.cuisine_type, rp.photo_paths, rp.description,
+      SELECT rp.id, rp.user_id, rp.name, rp.address, rp.latitude,
+             rp.longitude, rp.cuisine_type, rp.photo_paths, rp.description,
              rp.opening_hours,
              '' AS favorited_at
         FROM restaurant_profiles rp
         JOIN users u ON u.id = rp.user_id AND u.is_active = 1
       ''',
     );
-    final restaurants = restRows
-        .map((r) =>
-            RestaurantSummaryModel.fromMap(Map<String, dynamic>.from(r)))
-        .toList();
+    // Include photos uploaded on web, which are not in `photo_paths`.
+    final restaurants =
+        (await UploadedPhotos.withRestaurantUploads(db, restRows))
+            .map(RestaurantSummaryModel.fromMap)
+            .toList();
 
     // 5. All available dishes
     final dishRows = await db.query(

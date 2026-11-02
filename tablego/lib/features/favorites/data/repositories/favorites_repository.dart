@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../profile/data/uploaded_photos.dart';
 import '../../domain/favorites_exception.dart';
 import '../models/dish_summary_model.dart';
 import '../models/restaurant_summary_model.dart';
@@ -49,8 +50,8 @@ class FavoritesRepository {
     final db   = await _database;
     final rows = await db.rawQuery(
       '''
-      SELECT rp.id, rp.name, rp.address, rp.latitude, rp.longitude,
-             rp.cuisine_type, rp.photo_paths, rp.description,
+      SELECT rp.id, rp.user_id, rp.name, rp.address, rp.latitude,
+             rp.longitude, rp.cuisine_type, rp.photo_paths, rp.description,
              rp.opening_hours,
              fr.created_at AS favorited_at
         FROM favorite_restaurants fr
@@ -60,10 +61,9 @@ class FavoritesRepository {
       ''',
       [userId],
     );
-    return rows
-        .map((r) => RestaurantSummaryModel.fromMap(
-            Map<String, dynamic>.from(r)))
-        .toList();
+    // Include photos uploaded on web, which are not in `photo_paths`.
+    final withUploads = await UploadedPhotos.withRestaurantUploads(db, rows);
+    return withUploads.map(RestaurantSummaryModel.fromMap).toList();
   }
 
   /// Adds [restaurantId] to [userId]'s favorites.
