@@ -42,6 +42,8 @@ class SharedTables {
         ON dishes(restaurant_id)
     ''');
 
+    await addDishAllergens(db);
+
     // ── order_history ──────────────────────────────────────────────────────
     // Owned by the menu/orders module.
     // Used read-only by the recommendations feature (Module Utilisateur).
@@ -71,5 +73,23 @@ class SharedTables {
       CREATE INDEX IF NOT EXISTS idx_oh_restaurant_id
         ON order_history(restaurant_id)
     ''');
+  }
+
+  /// v3: `dishes.allergens` — JSON list of normalised allergen names, e.g.
+  /// `["arachides","gluten","lactose"]` (lowercase, no accents; see
+  /// docs/integration-recommandations.md).  `NULL` means "not declared",
+  /// which the recommender treats as unsafe for clients with allergies;
+  /// `[]` means "declared: no allergen".
+  ///
+  /// Called from [create] for new databases and from
+  /// `DatabaseHelper.migrate` for v1/v2 databases.  SQLite has no
+  /// `ADD COLUMN IF NOT EXISTS`, so the column is looked up first: running
+  /// this twice is a no-op.
+  static Future<void> addDishAllergens(DatabaseExecutor db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(dishes)');
+    final exists = columns.any((c) => c['name'] == 'allergens');
+    if (!exists) {
+      await db.execute('ALTER TABLE dishes ADD COLUMN allergens TEXT NULL');
+    }
   }
 }

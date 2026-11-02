@@ -22,7 +22,9 @@ Future<DatabaseHelper> buildTestDb() async {
   final db = await databaseFactoryFfi.openDatabase(
     uniquePath,
     options: OpenDatabaseOptions(
-      version: 1,
+      // Same version and tables as the app (SharedTables.create also adds
+      // the v3 dishes.allergens column).
+      version: DatabaseHelper.schemaVersion,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, _) async {
         await UserModuleTables.create(db);

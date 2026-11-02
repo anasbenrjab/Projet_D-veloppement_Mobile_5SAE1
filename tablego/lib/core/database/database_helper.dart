@@ -31,7 +31,11 @@ class DatabaseHelper {
   // Bump this for every schema change.  See class doc for the versioning rule.
   //   v1 — initial user-module + shared tables
   //   v2 — profile_photos (web photo bytes)
-  static const int _dbVersion = 2;
+  //   v3 — dishes.allergens (recommendations); next modules take v4, v5…
+  static const int _dbVersion = 3;
+
+  /// Current schema version, exposed for tests and tooling.
+  static int get schemaVersion => _dbVersion;
 
   /// Upper bound on the first web database open.
   ///
@@ -228,9 +232,21 @@ class DatabaseHelper {
   /// database that already has the objects is left unchanged.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (kDebugMode) debugPrint('[DB] onUpgrade: v$oldVersion → v$newVersion');
+    await migrate(db, oldVersion, newVersion);
+  }
+
+  /// The upgrade steps, one guarded block per version.  Public so tests can
+  /// run a real v2 → v3 upgrade on a test database.
+  @visibleForTesting
+  static Future<void> migrate(
+      DatabaseExecutor db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // v2: profile_photos (web photo bytes).
       await UserModuleTables.createProfilePhotos(db);
+    }
+    if (oldVersion < 3) {
+      // v3: dishes.allergens (recommendations).
+      await SharedTables.addDishAllergens(db);
     }
   }
 
