@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/routes.dart';
@@ -17,10 +18,16 @@ import 'features/profile/presentation/screens/edit_restaurant_profile_screen.dar
 import 'features/favorites/presentation/screens/favorites_screen.dart';
 
 void main() {
+  final bootWatch = Stopwatch()..start();
+  if (kDebugMode) debugPrint('[Boot] main() start');
   WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode) {
+    debugPrint('[Boot] engine ready (${bootWatch.elapsedMilliseconds}ms)');
+  }
   // On web this switches sqflite to the sqlite3-wasm factory; it is a no-op on
   // mobile (see the conditional import).  Must run before the DB is opened.
   configureWebDatabaseFactory();
+  if (kDebugMode) debugPrint('[Boot] runApp() (${bootWatch.elapsedMilliseconds}ms)');
   runApp(const ProviderScope(child: TableGoApp()));
 }
 

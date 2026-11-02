@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,24 +16,67 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  /// Upper bound on [AuthNotifier.restoreSession].
+  ///
+  /// A session restore must never leave the user stuck on the splash screen:
+  /// when it exceeds this delay we log the failure and route to login instead.
+  static const _restoreTimeout = Duration(seconds: 15);
+
   @override
   void initState() {
     super.initState();
-    _init();
+    // [restoreSession] mutates `authProvider`, and Riverpod forbids modifying a
+    // provider while the widget tree is building — which is exactly what
+    // `initState` runs in. Mutating there throws
+    // "Tried to modify a provider while the widget tree was building"
+    // (debug builds only), which made every session restore fail and always
+    // land on the login screen. Defer to the end of the first frame instead.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   Future<void> _init() async {
-    // Minimum splash display time runs in parallel with session restore.
-    await Future.wait([
-      Future<void>.delayed(const Duration(seconds: 2)),
-      ref.read(authProvider.notifier).restoreSession(),
-    ]);
+    final sw = Stopwatch()..start();
+    if (kDebugMode) debugPrint('[Splash] _init: start');
+
+    var restoreFailed = false;
+    // Kept so the navigation log can report *what* failed, not just that it did.
+    Object? restoreError;
+    try {
+      // Minimum splash display time runs in parallel with session restore.
+      await Future.wait([
+        Future<void>.delayed(const Duration(seconds: 2)),
+        ref
+            .read(authProvider.notifier)
+            .restoreSession()
+            .timeout(_restoreTimeout),
+      ]);
+    } on TimeoutException catch (e) {
+      restoreFailed = true;
+      restoreError = e;
+      debugPrint('[Splash] restoreSession TIMED OUT after '
+          '${_restoreTimeout.inSeconds}s — falling back to login '
+          '(${sw.elapsedMilliseconds}ms): ${e.runtimeType}: $e');
+    } catch (e, st) {
+      restoreFailed = true;
+      restoreError = e;
+      debugPrint('[Splash] restoreSession threw after '
+          '${sw.elapsedMilliseconds}ms — falling back to login: '
+          '${e.runtimeType}: $e\n$st');
+    }
+
     if (!mounted) return;
 
-    final isLoggedIn = ref.read(authProvider).isLoggedIn;
-    Navigator.of(context).pushReplacementNamed(
-      isLoggedIn ? Routes.home : Routes.login,
-    );
+    final isLoggedIn = !restoreFailed && ref.read(authProvider).isLoggedIn;
+    final target = isLoggedIn ? Routes.home : Routes.login;
+    if (kDebugMode) {
+      final errorDetail = restoreError == null
+          ? ''
+          : ', error=${restoreError.runtimeType}: $restoreError';
+      debugPrint('[Splash] navigating to $target '
+          '(${sw.elapsedMilliseconds}ms, restoreFailed=$restoreFailed'
+          '$errorDetail)');
+    }
+    Navigator.of(context).pushReplacementNamed(target);
   }
 
   @override

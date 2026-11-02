@@ -65,12 +65,16 @@ class DevSeed {
   static Future<void> run(Database db) async {
     if (!kDebugMode) return;
 
+    final sw = Stopwatch()..start();
+    debugPrint('[DevSeed] start');
+
     // Idempotency: skip if client@test.com already exists.
     final check = await db.query('users',
         columns: ['id'], where: 'email = ?',
         whereArgs: ['client@test.com'], limit: 1);
     if (check.isNotEmpty) {
-      debugPrint('[DevSeed] already seeded — skipping');
+      debugPrint('[DevSeed] already seeded — skipping '
+          '(${sw.elapsedMilliseconds}ms)');
       return;
     }
 
@@ -80,10 +84,14 @@ class DevSeed {
 
     // Hash once and reuse for every seed account. These are debug-only
     // credentials, so a shared salt is acceptable and keeps startup fast.
-    final salt       = PasswordHasher.generateSalt();
-    final passHash   = await PasswordHasher.hash(_seedPassword, salt);
+    final salt = PasswordHasher.generateSalt();
+    debugPrint('[DevSeed] hash password: start (${sw.elapsedMilliseconds}ms)');
+    final passHash = await PasswordHasher.hash(_seedPassword, salt);
+    debugPrint('[DevSeed] hash password: end (${sw.elapsedMilliseconds}ms)');
+    debugPrint('[DevSeed] hash answer: start (${sw.elapsedMilliseconds}ms)');
     final answerHash = await PasswordHasher.hash(
         _seedAnswer.trim().toLowerCase(), salt);
+    debugPrint('[DevSeed] hash answer: end (${sw.elapsedMilliseconds}ms)');
 
     // Inserts a user row plus its profile row directly on [db].
     // Deliberately avoids AuthRepository.register (which opens a transaction).
@@ -226,7 +234,8 @@ class DevSeed {
       await db.insert('order_history', row);
     }
 
-    debugPrint('[DevSeed] done — 4 users, 5 dishes, 2 fav restaurants, '
-        '2 fav dishes, 4 orders');
+    debugPrint('[DevSeed] end — 4 users, 5 dishes, 2 fav restaurants, '
+        '2 fav dishes, 4 orders (${sw.elapsedMilliseconds}ms)');
   }
+
 }

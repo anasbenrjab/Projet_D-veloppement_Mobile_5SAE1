@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -56,13 +57,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Called from [SplashScreen].  Restores a previous session if the stored
   /// user id resolves to an active account.
   Future<void> restoreSession() async {
+    final sw = Stopwatch()..start();
+    if (kDebugMode) debugPrint('[Auth] restoreSession: start');
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final user = await _repo.getSessionUser();
       state = state.copyWith(isLoading: false, user: user);
-    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Auth] restoreSession: end → '
+            '${user == null ? 'no session' : 'user ${user.id}'} '
+            '(${sw.elapsedMilliseconds}ms)');
+      }
+    } catch (e, st) {
       // Session restore failure is non-fatal — treat as logged out.
       state = state.copyWith(isLoading: false, clearUser: true);
+      if (kDebugMode) {
+        debugPrint('[Auth] restoreSession: error after '
+            '${sw.elapsedMilliseconds}ms → $e\n$st');
+      }
     }
   }
 
@@ -198,11 +210,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   ///
   /// - [AuthException] → use its message directly (already user-facing)
   /// - [DatabaseException] → generic message (internal detail must not leak)
+  /// - [StateError] → the local database could not be opened (web timeout)
   /// - anything else → generic fallback
   String _parseError(Object e) {
     if (e is AuthException) return e.message;
     if (e is DatabaseException) {
       return 'Une erreur interne est survenue. Réessayez.';
+    }
+    // Thrown by DatabaseHelper when the web database never opens in time.
+    if (e is StateError) {
+      return 'Impossible d\'ouvrir la base de données locale. '
+          'Rechargez la page et réessayez.';
     }
     return 'Une erreur inattendue est survenue.';
   }

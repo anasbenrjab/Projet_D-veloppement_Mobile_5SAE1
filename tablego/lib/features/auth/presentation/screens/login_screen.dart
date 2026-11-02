@@ -28,9 +28,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref
-        .read(authProvider.notifier)
-        .login(_emailCtrl.text.trim(), _passCtrl.text);
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text;
+    // Belt-and-braces: never call login with blank credentials (that first call
+    // would trigger the slow web database open).
+    if (email.isEmpty || password.isEmpty) return;
+
+    await ref.read(authProvider.notifier).login(email, password);
 
     if (!mounted) return;
     final state = ref.read(authProvider);
@@ -117,36 +121,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Expanded(child: Divider()),
                 ]),
                 const SizedBox(height: 16),
-                // Social placeholder buttons
+                // Social login is not available in this local-only build.
                 _SocialButton(
                   label: 'Continuer avec Google',
                   iconPath: 'G',
                   onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Google Sign-In coming soon'))),
+                      const SnackBar(content: Text('Bientôt disponible'))),
                 ),
                 const SizedBox(height: 12),
                 _SocialButton(
                   label: 'Continuer avec Apple',
                   iconPath: '',
                   onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Apple Sign-In coming soon'))),
+                      const SnackBar(content: Text('Bientôt disponible'))),
                 ),
                 const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Pas encore de compte ?"),
-                    TextButton(
-                      onPressed: () =>
-                          Navigator.of(context).pushNamed(Routes.register),
-                      child: const Text('S\'inscrire',
-                          style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ],
+                // [Wrap] instead of [Row] so the two elements stack on narrow
+                // widths instead of overflowing.
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text("Pas encore de compte ?"),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed(Routes.register),
+                        child: const Text('S\'inscrire',
+                            style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

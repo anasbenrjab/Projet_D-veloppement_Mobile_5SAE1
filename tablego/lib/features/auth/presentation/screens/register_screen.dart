@@ -283,20 +283,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   isLoading: isLoading,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Déjà un compte ?'),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text(
-                        'Se connecter',
-                        style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600),
+                // [Wrap] instead of [Row] so the two elements stack on narrow
+                // widths instead of overflowing.
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Déjà un compte ?'),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'Se connecter',
+                          style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

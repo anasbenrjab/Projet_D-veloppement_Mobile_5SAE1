@@ -467,11 +467,31 @@ class AuthRepository {
   ///
   /// In all failure cases the session is cleared from secure storage.
   Future<UserModel?> getSessionUser() async {
+    final sw = Stopwatch()..start();
+    if (kDebugMode) debugPrint('[Auth] getSessionUser: read secure storage');
     final raw = await _storage.read(key: _kSessionKey);
-    final userId = int.tryParse(raw ?? '');
-    if (userId == null) return null;
+    if (kDebugMode) {
+      debugPrint('[Auth] getSessionUser: secure storage read done '
+          '(${sw.elapsedMilliseconds}ms)');
+    }
 
+    final userId = int.tryParse(raw ?? '');
+    if (userId == null) {
+      if (kDebugMode) {
+        debugPrint('[Auth] getSessionUser: no stored session → null '
+            '(database NOT touched, ${sw.elapsedMilliseconds}ms)');
+      }
+      return null;
+    }
+
+    if (kDebugMode) {
+      debugPrint('[Auth] getSessionUser: session id=$userId → open database');
+    }
     final db = await _database;
+    if (kDebugMode) {
+      debugPrint('[Auth] getSessionUser: database ready '
+          '(${sw.elapsedMilliseconds}ms)');
+    }
     final user = await _fetchUserModel(db, userId);
 
     if (user == null || !user.isActive) {
