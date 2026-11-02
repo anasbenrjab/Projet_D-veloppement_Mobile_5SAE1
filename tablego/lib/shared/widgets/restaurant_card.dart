@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/photo_ref.dart';
+import 'photo_image.dart';
 
 class RestaurantCard extends StatelessWidget {
   const RestaurantCard({
@@ -20,8 +20,8 @@ class RestaurantCard extends StatelessWidget {
   final String cuisineType;
   final String address;
 
-  /// Absolute path to a local file on mobile, or a data URI on web.  Null or
-  /// unresolvable → placeholder.
+  /// Bundled asset path, absolute file path (mobile) or data URI (web).  Null
+  /// or unresolvable → restaurant placeholder image.
   final String? photoPath;
 
   final bool isFavorite;
@@ -148,21 +148,8 @@ class RestaurantCard extends StatelessWidget {
     );
   }
 
-  /// Shows the resolved photo if there is one, otherwise the placeholder —
-  /// never crashes on a missing file or unresolvable reference.
-  Widget _buildImage() {
-    final image = photoImageProvider(photoPath);
-    if (image != null) {
-      return Image(image: image, fit: BoxFit.cover, width: double.infinity);
-    }
-    return _placeholder();
-  }
-
-  Widget _placeholder() => Container(
-        color: AppColors.grey100,
-        child: const Center(
-          child:
-              Icon(Icons.restaurant, color: AppColors.grey300, size: 48),
-        ),
-      );
+  /// Shows the resolved photo if there is one, otherwise the restaurant
+  /// placeholder — never crashes on a missing file or unresolvable reference.
+  Widget _buildImage() =>
+      PhotoImage.restaurant(photoPath, width: double.infinity);
 }

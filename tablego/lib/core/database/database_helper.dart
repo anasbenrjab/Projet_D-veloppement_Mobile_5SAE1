@@ -100,6 +100,7 @@ class DatabaseHelper {
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onOpen: _onOpen,
     );
     // Bound the wait on web only — see [_webOpenTimeout].  Mobile keeps the
     // plain await so its behaviour is unchanged.
@@ -211,6 +212,13 @@ class DatabaseHelper {
           '${sw.elapsedMilliseconds}ms)');
     }
   }
+
+  /// Runs after every open, once [onCreate]/[onUpgrade] are done.
+  ///
+  /// Backfills the dev-seed photos on databases seeded before the photos
+  /// existed (debug builds only; a no-op once they are set).  This is data,
+  /// not schema, so it does not bump [_dbVersion].
+  Future<void> _onOpen(Database db) => DevSeed.applySeedPhotos(db);
 
   /// Applies schema changes to an existing database, one guarded block per
   /// version bump.

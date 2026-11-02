@@ -57,6 +57,60 @@ const _seedQuestion = 'Nom de votre animal de compagnie ?';
 const _seedAnswer   = 'médor';
 const _seedPassword = 'password123';
 
+// ── Seed photos ───────────────────────────────────────────────────────────────
+// Bundled assets (declared in pubspec.yaml; sources and licenses in
+// assets/images/CREDITS.md).  Applied by [DevSeed.applySeedPhotos].
+
+const _seedImages = 'assets/images/seed';
+
+/// Client avatar, keyed by account email.
+const _clientPhotos = {
+  'client@test.com': '$_seedImages/avatars/alice.jpg',
+};
+
+/// Restaurant photos (first = cover), keyed by account email.
+const _restaurantPhotos = {
+  'resto@test.com': [
+    '$_seedImages/restaurants/gourmet_1.jpg',
+    '$_seedImages/restaurants/gourmet_2.jpg',
+    '$_seedImages/restaurants/gourmet_3.jpg',
+  ],
+  'burgerking@test.com': [
+    '$_seedImages/restaurants/burger_1.jpg',
+    '$_seedImages/restaurants/burger_2.jpg',
+    '$_seedImages/restaurants/burger_3.jpg',
+  ],
+  'sushi@test.com': [
+    '$_seedImages/restaurants/sushi_1.jpg',
+    '$_seedImages/restaurants/sushi_2.jpg',
+    '$_seedImages/restaurants/sushi_3.jpg',
+  ],
+};
+
+/// Dish photos, keyed by the owning restaurant's email, then dish name.
+const _dishPhotos = {
+  'resto@test.com': {
+    "Soupe à l'oignon": '$_seedImages/dishes/soupe_oignon.jpg',
+    'Poulet rôti':      '$_seedImages/dishes/poulet_roti.jpg',
+  },
+  'burgerking@test.com': {
+    'Smash Burger Classic':  '$_seedImages/dishes/smash_burger.jpg',
+    'Crispy Chicken Burger': '$_seedImages/dishes/crispy_chicken_burger.jpg',
+  },
+  'sushi@test.com': {
+    'Salmon Sashimi (8 pcs)': '$_seedImages/dishes/salmon_sashimi.jpg',
+  },
+};
+
+/// Every asset path the seed references — exposed so tests can check that
+/// each one exists and is bundled.
+@visibleForTesting
+Iterable<String> get seedPhotoAssets => [
+      ..._clientPhotos.values,
+      for (final paths in _restaurantPhotos.values) ...paths,
+      for (final dishes in _dishPhotos.values) ...dishes.values,
+    ];
+
 // ── Seed entry point ──────────────────────────────────────────────────────────
 
 class DevSeed {
@@ -234,8 +288,53 @@ class DevSeed {
       await db.insert('order_history', row);
     }
 
+    await applySeedPhotos(db);
+
     debugPrint('[DevSeed] end — 4 users, 5 dishes, 2 fav restaurants, '
         '2 fav dishes, 4 orders (${sw.elapsedMilliseconds}ms)');
   }
 
+  /// Sets the bundled seed photos on seed rows that have no photo yet.
+  ///
+  /// Called at the end of [run] for new databases, and by `DatabaseHelper`
+  /// on every open so databases seeded before the photos existed get them
+  /// too.  Idempotent, and never overwrites a photo a user has set.  Like
+  /// [run], it does nothing outside debug builds and opens no transaction,
+  /// so it is safe inside `onCreate`.
+  static Future<void> applySeedPhotos(DatabaseExecutor db) async {
+    if (!kDebugMode) return;
+    var updated = 0;
+
+    for (final e in _clientPhotos.entries) {
+      updated += await db.rawUpdate('''
+        UPDATE client_profiles SET photo_path = ?
+         WHERE (photo_path IS NULL OR photo_path = '')
+           AND user_id = (SELECT id FROM users WHERE email = ?)
+      ''', [e.value, e.key]);
+    }
+
+    for (final e in _restaurantPhotos.entries) {
+      updated += await db.rawUpdate('''
+        UPDATE restaurant_profiles SET photo_paths = ?
+         WHERE (photo_paths IS NULL OR photo_paths IN ('', '[]'))
+           AND user_id = (SELECT id FROM users WHERE email = ?)
+      ''', [jsonEncode(e.value), e.key]);
+    }
+
+    for (final restaurant in _dishPhotos.entries) {
+      for (final dish in restaurant.value.entries) {
+        updated += await db.rawUpdate('''
+          UPDATE dishes SET photo_path = ?
+           WHERE (photo_path IS NULL OR photo_path = '')
+             AND name = ?
+             AND restaurant_id IN (
+                   SELECT rp.id FROM restaurant_profiles rp
+                     JOIN users u ON u.id = rp.user_id
+                    WHERE u.email = ?)
+        ''', [dish.value, dish.key, restaurant.key]);
+      }
+    }
+
+    if (updated > 0) debugPrint('[DevSeed] seed photos set on $updated rows');
+  }
 }

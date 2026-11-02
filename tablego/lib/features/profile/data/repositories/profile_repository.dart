@@ -121,9 +121,16 @@ class ProfileRepository {
       throw const ProfileException(
           'Ce compte n\'est pas un compte restaurant');
     }
-    // Web keeps the bytes in `profile_photos`; surface them as data URIs.
+    // Web keeps uploaded bytes in `profile_photos`; surface them as data URIs
+    // after the stored references (e.g. bundled seed photos), the same order
+    // as mobile, which appends new uploads to `photo_paths`.
     final refs = await _webPhotoRefs(userId, 'restaurant');
-    if (refs.isNotEmpty) row['photo_paths'] = jsonEncode(refs);
+    if (refs.isNotEmpty) {
+      row['photo_paths'] = jsonEncode([
+        ...RestaurantProfileModel.decodeList(row['photo_paths']),
+        ...refs,
+      ]);
+    }
     return RestaurantProfileModel.fromMap(row);
   }
 
@@ -222,8 +229,11 @@ class ProfileRepository {
         whereArgs: [userId],
       );
 
-      // Delete old file only after the DB write succeeds.
-      if (oldPath != null) await deleteStoredPhoto(oldPath);
+      // Delete the old file only after the DB write succeeds — and never a
+      // bundled asset (e.g. the seed avatar), which is not ours to delete.
+      if (oldPath != null && !isAssetPhoto(oldPath)) {
+        await deleteStoredPhoto(oldPath);
+      }
     } else {
       // Restaurant: append to the JSON photo_paths array.
       final rows = await db.query(

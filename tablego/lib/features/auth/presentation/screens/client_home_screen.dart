@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/photo_ref.dart';
 import '../../../favorites/providers/favorites_provider.dart';
 import '../../../profile/providers/profile_provider.dart';
 import '../../../recommendations/presentation/widgets/recommendation_carousel.dart';
@@ -45,12 +46,11 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final profileState = ref.watch(profileProvider);
-    final String name;
-    if (profileState.data is ClientData) {
-      name = (profileState.data! as ClientData).profile.fullName ?? 'vous';
-    } else {
-      name = 'vous';
-    }
+    final clientProfile = profileState.data is ClientData
+        ? (profileState.data! as ClientData).profile
+        : null;
+    final name = clientProfile?.fullName ?? 'vous';
+    final avatarImage = photoImageProvider(clientProfile?.photoPath);
 
     return Scaffold(
       body: SafeArea(
@@ -88,8 +88,16 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                             radius: 22,
                             backgroundColor:
                                 AppColors.primary.withValues(alpha: 0.15),
-                            child: const Icon(Icons.person,
-                                color: AppColors.primary, size: 22),
+                            backgroundImage: avatarImage,
+                            // A photo that fails to load leaves the tinted
+                            // background instead of reporting an error.
+                            onBackgroundImageError: avatarImage == null
+                                ? null
+                                : (_, _) {},
+                            child: avatarImage == null
+                                ? const Icon(Icons.person,
+                                    color: AppColors.primary, size: 22)
+                                : null,
                           ),
                         ),
                       ],

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/photo_ref.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
+import '../../../../shared/widgets/photo_image.dart';
 import '../../providers/profile_provider.dart';
 
 class RestaurantProfileScreen extends ConsumerStatefulWidget {
@@ -71,9 +71,9 @@ class _RestaurantProfileScreenState
             SizedBox(
               height: 200,
               width: double.infinity,
-              child: photoPaths.isNotEmpty
-                  ? _localOrPlaceholder(photoPaths.first)
-                  : _placeholder(),
+              child: PhotoImage.restaurant(
+                  photoPaths.isNotEmpty ? photoPaths.first : null,
+                  width: double.infinity),
             ),
 
             Padding(
@@ -165,7 +165,8 @@ class _RestaurantProfileScreenState
                       itemCount: photoPaths.length,
                       itemBuilder: (_, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: _localOrPlaceholder(photoPaths[i]),
+                        child: PhotoImage.restaurant(photoPaths[i],
+                            width: double.infinity),
                       ),
                     ),
                   ],
@@ -192,24 +193,6 @@ class _RestaurantProfileScreenState
       ),
     );
   }
-
-  /// Shows the photo when [path] resolves (file path on mobile, data URI on
-  /// web), otherwise the placeholder — so the screen never crashes on a
-  /// missing file.
-  Widget _localOrPlaceholder(String path) {
-    final image = photoImageProvider(path);
-    if (image != null) {
-      return Image(image: image, fit: BoxFit.cover, width: double.infinity);
-    }
-    return _placeholder();
-  }
-
-  Widget _placeholder() => Container(
-        color: AppColors.grey100,
-        child: const Center(
-            child:
-                Icon(Icons.store, size: 72, color: AppColors.grey300)),
-      );
 }
 
 class _HourRow extends StatelessWidget {

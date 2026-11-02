@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/photo_ref.dart';
+import '../../../../shared/widgets/photo_image.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -137,24 +136,11 @@ class _EditRestaurantProfileScreenState
                     scrollDirection: Axis.horizontal,
                     itemCount: photoPaths.length,
                     separatorBuilder: (_, s) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final image = photoImageProvider(photoPaths[i]);
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: image != null
-                            ? Image(
-                                image: image,
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover)
-                            : Container(
-                                width: 80,
-                                height: 80,
-                                color: AppColors.grey100,
-                                child: const Icon(Icons.broken_image,
-                                    color: AppColors.grey300)),
-                      );
-                    },
+                    itemBuilder: (_, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: PhotoImage.restaurant(photoPaths[i],
+                          width: 80, height: 80),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

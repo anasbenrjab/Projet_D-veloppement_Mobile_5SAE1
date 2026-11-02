@@ -56,3 +56,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Asset folders are not recursive: list every folder that holds images.
+  # Sources and licenses: assets/images/CREDITS.md
+  assets:
+    - assets/images/placeholders/
+    - assets/images/seed/restaurants/
+    - assets/images/seed/dishes/
+    - assets/images/seed/avatars/
