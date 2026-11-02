@@ -219,10 +219,14 @@ class DatabaseHelper {
 
   /// Runs after every open, once [onCreate]/[onUpgrade] are done.
   ///
-  /// Backfills the dev-seed photos on databases seeded before the photos
-  /// existed (debug builds only; a no-op once they are set).  This is data,
-  /// not schema, so it does not bump [_dbVersion].
-  Future<void> _onOpen(Database db) => DevSeed.applySeedPhotos(db);
+  /// Backfills the dev-seed demo data (recommendation menu, allergens, demo
+  /// clients) and photos on databases seeded before they existed (debug
+  /// builds only; a no-op once they are set).  This is data, not schema, so
+  /// it does not bump [_dbVersion].
+  Future<void> _onOpen(Database db) async {
+    await DevSeed.applyRecommendationDemo(db);
+    await DevSeed.applySeedPhotos(db);
+  }
 
   /// Applies schema changes to an existing database, one guarded block per
   /// version bump.

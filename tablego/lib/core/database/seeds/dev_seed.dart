@@ -11,10 +11,17 @@
 // Security question : "Nom de votre animal de compagnie ?"
 // Security answer   : "médor"
 //
-//   client@test.com       — client   — Alice Dupont
+//   client@test.com       — client   — Alice Dupont (halal, végétarien;
+//                                       allergie : arachides)
 //   resto@test.com        — restaurant — Le Gourmet Parisien (French)
 //   burgerking@test.com   — restaurant — Burger Palace (American)
 //   sushi@test.com        — restaurant — Tokyo Sushi Bar (Japanese)
+//
+// Recommendation demo clients (see [DevSeed.applyRecommendationDemo]):
+//   karim@test.com        — Karim Benali  (halal)
+//   sophie@test.com       — Sophie Martin (végétarien)
+//   yuki@test.com         — Yuki Tanaka   (allergie : lactose)
+//   lucas@test.com        — Lucas Petit   (aucune contrainte)
 
 import 'dart:convert';
 
@@ -101,6 +108,163 @@ const _dishPhotos = {
     'Salmon Sashimi (8 pcs)': '$_seedImages/dishes/salmon_sashimi.jpg',
   },
 };
+
+// ── Recommendation demo ───────────────────────────────────────────────────────
+// A richer menu (diet tags and allergens in the normalised French format of
+// docs/integration-recommandations.md) and extra clients with dated orders
+// and favorites, so the recommender gives visibly different results per
+// client.  Applied by [DevSeed.applyRecommendationDemo].
+
+class _SeedDish {
+  const _SeedDish(this.restaurant, this.name, this.description, this.price,
+      this.tags, this.allergens);
+
+  /// Owning restaurant's account email.
+  final String restaurant;
+  final String name;
+  final String description;
+  final double price;
+  final List<String> tags;
+  final List<String> allergens;
+}
+
+const _menu = [
+  // Le Gourmet Parisien (French)
+  _SeedDish('resto@test.com', "Soupe à l'oignon",
+      'Classic French onion soup with gruyère crouton', 12.50,
+      ['vegetarien'], ['gluten', 'lactose']),
+  _SeedDish('resto@test.com', 'Poulet rôti',
+      'Oven-roasted chicken with seasonal vegetables', 18.90,
+      ['halal'], []),
+  _SeedDish('resto@test.com', 'Ratatouille provençale',
+      "Légumes du soleil mijotés à l'huile d'olive", 13.00,
+      ['vegetarien', 'vegan', 'halal'], []),
+  _SeedDish('resto@test.com', 'Croque-monsieur',
+      'Jambon, béchamel et emmental gratinés', 9.50,
+      [], ['gluten', 'lactose']),
+  _SeedDish('resto@test.com', 'Tarte aux pommes',
+      'Pâte sablée et pommes caramélisées', 6.50,
+      ['vegetarien', 'halal'], ['gluten', 'lactose', 'oeufs']),
+  // Burger Palace (American)
+  _SeedDish('burgerking@test.com', 'Smash Burger Classic',
+      'Double smash patty, cheddar, pickles, house sauce', 14.00,
+      [], ['gluten', 'lactose', 'oeufs']),
+  _SeedDish('burgerking@test.com', 'Crispy Chicken Burger',
+      'Crispy fried chicken, coleslaw, sriracha mayo', 13.50,
+      ['halal'], ['gluten', 'oeufs']),
+  _SeedDish('burgerking@test.com', 'Veggie Burger',
+      'Galette de pois chiches, sauce maison', 12.50,
+      ['vegetarien', 'halal'], ['gluten', 'soja']),
+  _SeedDish('burgerking@test.com', 'Frites maison',
+      'Pommes de terre fraîches, sel de Guérande', 4.50,
+      ['vegan', 'vegetarien', 'halal'], []),
+  _SeedDish('burgerking@test.com', 'Cookie beurre de cacahuète',
+      'Cookie moelleux au beurre de cacahuète', 3.90,
+      ['vegetarien', 'halal'], ['gluten', 'lactose', 'oeufs', 'arachides']),
+  // Tokyo Sushi Bar (Japanese)
+  _SeedDish('sushi@test.com', 'Salmon Sashimi (8 pcs)',
+      'Premium Atlantic salmon, fresh wasabi', 16.00,
+      ['pescetarien'], ['poisson']),
+  _SeedDish('sushi@test.com', 'Maki avocat-concombre',
+      '6 makis avocat et concombre', 7.50,
+      ['vegan', 'vegetarien'], ['soja']),
+  _SeedDish('sushi@test.com', 'Ramen au poulet',
+      'Bouillon de poulet, nouilles, œuf mollet', 14.50,
+      ['halal'], ['gluten', 'soja', 'oeufs']),
+  _SeedDish('sushi@test.com', 'Edamame',
+      'Fèves de soja au sel', 5.00,
+      ['vegan', 'vegetarien'], ['soja']),
+];
+
+class _DemoClient {
+  const _DemoClient({
+    required this.email,
+    required this.fullName,
+    this.diets = const [],
+    this.allergies = const [],
+    this.favoriteRestaurants = const [],
+    this.favoriteDishes = const [],
+    this.orders = const [],
+  });
+
+  final String email;
+  final String fullName;
+
+  /// Stored with the profile screen's values (normalised on read).
+  final List<String> diets;
+  final List<String> allergies;
+  final List<String> favoriteRestaurants; // restaurant account emails
+  final List<String> favoriteDishes;      // dish names
+  final List<(String, int)> orders;       // (dish name, days ago)
+}
+
+const _demoClients = [
+  _DemoClient(
+    email: 'karim@test.com',
+    fullName: 'Karim Benali',
+    diets: ['halal'],
+    favoriteRestaurants: ['burgerking@test.com'],
+    favoriteDishes: ['Crispy Chicken Burger'],
+    orders: [
+      ('Crispy Chicken Burger', 2), ('Crispy Chicken Burger', 9),
+      ('Crispy Chicken Burger', 20), ('Frites maison', 2),
+      ('Frites maison', 9), ('Poulet rôti', 5), ('Poulet rôti', 30),
+      ('Ramen au poulet', 12),
+    ],
+  ),
+  _DemoClient(
+    email: 'sophie@test.com',
+    fullName: 'Sophie Martin',
+    diets: ['vegetarian'],
+    favoriteRestaurants: ['resto@test.com'],
+    favoriteDishes: ['Ratatouille provençale'],
+    orders: [
+      ('Ratatouille provençale', 1), ('Ratatouille provençale', 15),
+      ('Tarte aux pommes', 1), ('Maki avocat-concombre', 7),
+      ('Maki avocat-concombre', 21), ('Edamame', 7),
+      ('Veggie Burger', 25), ('Frites maison', 25),
+    ],
+  ),
+  _DemoClient(
+    email: 'yuki@test.com',
+    fullName: 'Yuki Tanaka',
+    allergies: ['dairy'],
+    favoriteRestaurants: ['sushi@test.com'],
+    favoriteDishes: ['Salmon Sashimi (8 pcs)'],
+    orders: [
+      ('Salmon Sashimi (8 pcs)', 3), ('Salmon Sashimi (8 pcs)', 10),
+      ('Salmon Sashimi (8 pcs)', 24), ('Ramen au poulet', 3),
+      ('Ramen au poulet', 17), ('Edamame', 10),
+      ('Maki avocat-concombre', 24),
+    ],
+  ),
+  _DemoClient(
+    email: 'lucas@test.com',
+    fullName: 'Lucas Petit',
+    favoriteRestaurants: ['burgerking@test.com'],
+    favoriteDishes: ['Smash Burger Classic'],
+    orders: [
+      ('Smash Burger Classic', 1), ('Smash Burger Classic', 8),
+      ('Smash Burger Classic', 16), ('Frites maison', 1),
+      ('Frites maison', 8), ('Croque-monsieur', 4),
+      ('Croque-monsieur', 19), ('Cookie beurre de cacahuète', 8),
+    ],
+  ),
+];
+
+/// Email of every account the seed creates (base accounts + demo clients).
+@visibleForTesting
+Iterable<String> get seedAccountEmails => [
+      'client@test.com',
+      'resto@test.com',
+      'burgerking@test.com',
+      'sushi@test.com',
+      for (final c in _demoClients) c.email,
+    ];
+
+/// Number of dishes on the seed menu.
+@visibleForTesting
+int get seedMenuSize => _menu.length;
 
 /// Every asset path the seed references — exposed so tests can check that
 /// each one exists and is bundled.
@@ -288,10 +452,137 @@ class DevSeed {
       await db.insert('order_history', row);
     }
 
+    await applyRecommendationDemo(db);
     await applySeedPhotos(db);
 
-    debugPrint('[DevSeed] end — 4 users, 5 dishes, 2 fav restaurants, '
-        '2 fav dishes, 4 orders (${sw.elapsedMilliseconds}ms)');
+    debugPrint('[DevSeed] end — base accounts + recommendation demo '
+        '(${sw.elapsedMilliseconds}ms)');
+  }
+
+  /// Adds the recommendation demo — full menu with diet tags and allergens,
+  /// extra clients with orders and favorites — to a seeded database.
+  ///
+  /// Called at the end of [run] for new databases, and by `DatabaseHelper`
+  /// on every open so databases seeded before the demo existed get it too.
+  /// Idempotent: missing dishes are inserted, seed dishes whose `allergens`
+  /// is still NULL get their tags and allergens, and a demo client (with
+  /// their orders and favorites) is only created if their email is absent.
+  /// Debug builds only; opens no transaction, so it is safe in `onCreate`.
+  static Future<void> applyRecommendationDemo(DatabaseExecutor db) async {
+    if (!kDebugMode) return;
+
+    // Seed restaurants: email → restaurant_profiles.id.  A database without
+    // them was not seeded: leave it alone.
+    final restaurantIds = <String, int>{};
+    for (final email in {for (final d in _menu) d.restaurant}) {
+      final rows = await db.rawQuery('''
+        SELECT rp.id FROM restaurant_profiles rp
+          JOIN users u ON u.id = rp.user_id
+         WHERE u.email = ?
+      ''', [email]);
+      if (rows.isEmpty) return;
+      restaurantIds[email] = rows.first['id']! as int;
+    }
+
+    // Menu.
+    var dishChanges = 0;
+    final dishIds = <String, int>{};
+    for (final d in _menu) {
+      final restaurantId = restaurantIds[d.restaurant]!;
+      final rows = await db.query('dishes',
+          columns: ['id', 'allergens'],
+          where: 'restaurant_id = ? AND name = ?',
+          whereArgs: [restaurantId, d.name],
+          limit: 1);
+      if (rows.isEmpty) {
+        dishIds[d.name] = await db.insert('dishes', {
+          'restaurant_id': restaurantId,
+          'name':          d.name,
+          'description':   d.description,
+          'price':         d.price,
+          'is_available':  1,
+          'tags':          jsonEncode(d.tags),
+          'allergens':     jsonEncode(d.allergens),
+        });
+        dishChanges++;
+      } else {
+        dishIds[d.name] = rows.first['id']! as int;
+        if (rows.first['allergens'] == null) {
+          dishChanges += await db.update(
+            'dishes',
+            {'tags': jsonEncode(d.tags), 'allergens': jsonEncode(d.allergens)},
+            where: 'id = ?',
+            whereArgs: [dishIds[d.name]],
+          );
+        }
+      }
+    }
+
+    // Demo clients.
+    final missing = <_DemoClient>[];
+    for (final c in _demoClients) {
+      final rows = await db.query('users',
+          columns: ['id'], where: 'email = ?', whereArgs: [c.email], limit: 1);
+      if (rows.isEmpty) missing.add(c);
+    }
+    if (missing.isNotEmpty) {
+      final salt = PasswordHasher.generateSalt();
+      final passHash = await PasswordHasher.hash(_seedPassword, salt);
+      final answerHash =
+          await PasswordHasher.hash(_seedAnswer.trim().toLowerCase(), salt);
+      final now = DateTime.now().toUtc();
+      final nowIso = now.toIso8601String();
+
+      for (final c in missing) {
+        final userId = await db.insert('users', {
+          'email':               c.email,
+          'password_hash':       passHash,
+          'salt':                salt,
+          'password_iterations': PasswordHasher.kPasswordIterations,
+          'user_type':           'client',
+          'is_active':           1,
+          'reset_question':      _seedQuestion,
+          'reset_answer_hash':   answerHash,
+          'reset_answer_salt':   salt,
+          'created_at':          nowIso,
+          'updated_at':          nowIso,
+        });
+        await db.insert('client_profiles', {
+          'user_id':             userId,
+          'full_name':           c.fullName,
+          'dietary_preferences': jsonEncode(c.diets),
+          'allergies':           jsonEncode(c.allergies),
+          'created_at':          nowIso,
+          'updated_at':          nowIso,
+        });
+        for (final email in c.favoriteRestaurants) {
+          await db.insert('favorite_restaurants',
+              {'user_id': userId, 'restaurant_id': restaurantIds[email]},
+              conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+        for (final name in c.favoriteDishes) {
+          await db.insert('favorite_dishes',
+              {'user_id': userId, 'dish_id': dishIds[name]},
+              conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+        for (final (name, daysAgo) in c.orders) {
+          final dish = _menu.firstWhere((d) => d.name == name);
+          await db.insert('order_history', {
+            'user_id':       userId,
+            'restaurant_id': restaurantIds[dish.restaurant],
+            'dish_id':       dishIds[name],
+            'ordered_at': now
+                .subtract(Duration(days: daysAgo))
+                .toIso8601String(),
+          });
+        }
+      }
+    }
+
+    if (dishChanges > 0 || missing.isNotEmpty) {
+      debugPrint('[DevSeed] recommendation demo: $dishChanges dishes set, '
+          '${missing.length} demo clients added');
+    }
   }
 
   /// Sets the bundled seed photos on seed rows that have no photo yet.
