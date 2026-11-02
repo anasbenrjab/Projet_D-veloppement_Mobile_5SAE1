@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import 'photo_image.dart';
+import 'recommendation_reason.dart';
 
 class RestaurantCard extends StatelessWidget {
   const RestaurantCard({
@@ -14,6 +15,7 @@ class RestaurantCard extends StatelessWidget {
     this.onFavoriteTap,
     this.onTap,
     this.showAiBadge = false,
+    this.reason,
   });
 
   final String name;
@@ -28,6 +30,9 @@ class RestaurantCard extends StatelessWidget {
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onTap;
   final bool showAiBadge;
+
+  /// Optional "why" line (recommendations), shown under the address.
+  final String? reason;
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +144,10 @@ class RestaurantCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (reason != null && reason!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    RecommendationReason(reason!),
+                  ],
                 ],
               ),
             ),

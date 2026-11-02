@@ -156,13 +156,14 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
               ),
             ),
-            // ── Recommendations carousel ───────────────────────────────────
+            // ── Recommendations: restaurants, then dishes ──────────────────
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.only(top: 12),
                 child: RecommendationCarousel(),
               ),
             ),
+            const SliverToBoxAdapter(child: DishRecommendationsSection()),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),

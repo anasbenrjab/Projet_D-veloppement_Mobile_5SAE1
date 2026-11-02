@@ -130,6 +130,7 @@ void main() {
     // ── "Recommandé pour vous" ────────────────────────────────────────────
     final recommended = (await RecommendationsRepository(dbHelper: helper)
             .getRecommendations(client.id))
+        .restaurants
         .map((s) => s.restaurant);
     expect(_byName(recommended, 'Uploads Only').firstPhotoPath, onlyUpload);
     expect(_byName(recommended, 'Stored And Uploads').photoPaths,
@@ -173,6 +174,6 @@ void main() {
 
     final recommended = await RecommendationsRepository(dbHelper: helper)
         .getRecommendations(client.id);
-    expect(recommended.single.restaurant.photoPaths, isEmpty);
+    expect(recommended.restaurants.single.restaurant.photoPaths, isEmpty);
   });
 }

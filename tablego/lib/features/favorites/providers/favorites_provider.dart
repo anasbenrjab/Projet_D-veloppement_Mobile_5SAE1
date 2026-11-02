@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/data/user_data_changes.dart';
 import '../data/models/dish_summary_model.dart';
 import '../data/models/restaurant_summary_model.dart';
 import '../data/repositories/favorites_repository.dart';
@@ -36,13 +37,16 @@ class FavoriteRestaurantsState {
 
 class FavoriteRestaurantsNotifier
     extends StateNotifier<FavoriteRestaurantsState> {
-  FavoriteRestaurantsNotifier(this._repo, this._userId)
+  FavoriteRestaurantsNotifier(this._repo, this._userId, {this.onChanged})
       : super(const FavoriteRestaurantsState()) {
     load();
   }
 
   final FavoritesRepository _repo;
   final int _userId;
+
+  /// Called after a favorite was added or removed in the database.
+  final void Function()? onChanged;
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
@@ -79,6 +83,7 @@ class FavoriteRestaurantsNotifier
         // Reload to get the full RestaurantSummaryModel from the JOIN.
         await load();
       }
+      onChanged?.call();
     } catch (e) {
       // Roll back to the previous list and surface the error.
       state = state.copyWith(
@@ -128,13 +133,16 @@ class FavoriteDishesState {
 }
 
 class FavoriteDishesNotifier extends StateNotifier<FavoriteDishesState> {
-  FavoriteDishesNotifier(this._repo, this._userId)
+  FavoriteDishesNotifier(this._repo, this._userId, {this.onChanged})
       : super(const FavoriteDishesState()) {
     load();
   }
 
   final FavoritesRepository _repo;
   final int _userId;
+
+  /// Called after a favorite was added or removed in the database.
+  final void Function()? onChanged;
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
@@ -166,6 +174,7 @@ class FavoriteDishesNotifier extends StateNotifier<FavoriteDishesState> {
         await _repo.addFavoriteDish(_userId, dishId);
         await load();
       }
+      onChanged?.call();
     } catch (e) {
       state = state.copyWith(dishes: previous, error: _parseError(e));
     }
@@ -186,14 +195,22 @@ class FavoriteDishesNotifier extends StateNotifier<FavoriteDishesState> {
 
 /// userId must be provided by callers that have an authenticated user.
 /// The providers below take a [userId] parameter via family.
+/// Every successful favorite change bumps [userDataChangesProvider], so the
+/// recommendations refresh.
 final favoriteRestaurantsProvider = StateNotifierProvider.family<
     FavoriteRestaurantsNotifier, FavoriteRestaurantsState, int>(
-  (ref, userId) =>
-      FavoriteRestaurantsNotifier(ref.watch(favoritesRepositoryProvider), userId),
+  (ref, userId) => FavoriteRestaurantsNotifier(
+    ref.watch(favoritesRepositoryProvider),
+    userId,
+    onChanged: () => ref.read(userDataChangesProvider.notifier).changed(),
+  ),
 );
 
 final favoriteDishesProvider = StateNotifierProvider.family<
     FavoriteDishesNotifier, FavoriteDishesState, int>(
-  (ref, userId) =>
-      FavoriteDishesNotifier(ref.watch(favoritesRepositoryProvider), userId),
+  (ref, userId) => FavoriteDishesNotifier(
+    ref.watch(favoritesRepositoryProvider),
+    userId,
+    onChanged: () => ref.read(userDataChangesProvider.notifier).changed(),
+  ),
 );

@@ -1,10 +1,20 @@
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:tablego/core/data/user_data_changes.dart';
+import 'package:tablego/core/database/database_helper.dart';
 import 'package:tablego/features/auth/data/repositories/auth_repository.dart';
-import 'package:tablego/features/favorites/data/models/restaurant_summary_model.dart';
+import 'package:tablego/features/favorites/data/repositories/favorites_repository.dart';
+import 'package:tablego/features/favorites/providers/favorites_provider.dart';
+import 'package:tablego/features/profile/data/repositories/profile_repository.dart';
+import 'package:tablego/features/profile/providers/profile_provider.dart';
+import 'package:tablego/features/recommendations/data/recommendation_data_source.dart';
 import 'package:tablego/features/recommendations/data/repositories/recommendations_repository.dart';
-import 'package:tablego/features/recommendations/domain/recommendation_service.dart';
+import 'package:tablego/features/recommendations/domain/recommendation_models.dart';
+import 'package:tablego/features/recommendations/providers/recommendations_provider.dart';
 
 import '../auth/helpers/db_test_helper.dart';
 
@@ -30,17 +40,88 @@ class _FakeStorage extends Fake implements FlutterSecureStorage {
       WindowsOptions? wOptions}) async => _m.remove(key);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+/// Counts how often the recommendations are (re)computed.
+class _CountingRepository extends RecommendationsRepository {
+  _CountingRepository(this._inner);
 
-RestaurantSummaryModel _resto(int id, String name) => RestaurantSummaryModel(
-      id: id, name: name, address: '', cuisineType: '', favoritedAt: '');
+  final RecommendationsRepository _inner;
+  int calls = 0;
 
-DishForScoring _dish(int id, int restaurantId, List<String> tags) =>
-    DishForScoring(
-        id: id, restaurantId: restaurantId, name: 'Dish $id',
-        price: 10, tags: tags);
+  @override
+  Future<RecommendationResult> getRecommendations(int userId,
+      {DateTime? now}) {
+    calls++;
+    return _inner.getRecommendations(userId, now: now);
+  }
+}
 
-// ── RecommendationService unit tests ─────────────────────────────────────────
+// ── Fixture ───────────────────────────────────────────────────────────────────
+
+/// A client and one restaurant whose dishes are written with the formats a
+/// teammate might use: mixed case, accents, English names, NULL allergens.
+class _Fixture {
+  _Fixture._(this.helper, this.db, this.auth);
+
+  final DatabaseHelper helper;
+  final Database db;
+  final AuthRepository auth;
+  late final int clientId;
+  late final int restaurantId;
+  final dishIds = <String, int>{};
+
+  static Future<_Fixture> create({
+    List<String> diets = const [],
+    List<String> allergies = const [],
+  }) async {
+    final helper = await buildTestDb();
+    final f = _Fixture._(helper, await helper.database,
+        AuthRepository(dbHelper: helper, storage: _FakeStorage()));
+
+    f.clientId = (await f.auth.register(
+      email: 'client@reco.test', password: 'Password1!',
+      userType: 'client', resetQuestion: 'Q?', resetAnswer: 'A',
+    )).id;
+    await f.db.update(
+      'client_profiles',
+      {
+        'dietary_preferences': jsonEncode(diets),
+        'allergies': jsonEncode(allergies),
+      },
+      where: 'user_id = ?', whereArgs: [f.clientId],
+    );
+
+    final owner = await f.auth.register(
+      email: 'resto@reco.test', password: 'Password1!',
+      userType: 'restaurant', resetQuestion: 'Q?', resetAnswer: 'A',
+      restaurantName: 'Test Bistro',
+    );
+    final rows = await f.db.query('restaurant_profiles',
+        columns: ['id'], where: 'user_id = ?', whereArgs: [owner.id]);
+    f.restaurantId = rows.single['id']! as int;
+    await f.db.update('restaurant_profiles', {'cuisine_type': 'French'},
+        where: 'id = ?', whereArgs: [f.restaurantId]);
+
+    Future<void> dish(String name, String? tags, String? allergens) async {
+      f.dishIds[name] = await f.db.insert('dishes', {
+        'restaurant_id': f.restaurantId, 'name': name, 'price': 12.0,
+        'is_available': 1, 'tags': tags, 'allergens': allergens,
+      });
+    }
+
+    await dish('Falafel', '["Végétarien","HALAL"]', '[]');
+    await dish('Cookie', '["vegetarian","halal"]', '["Peanuts","gluten"]');
+    await dish('Mystère', '["vegetarien","halal"]', null);
+    await dish('Poulet', '["halal"]', '[]');
+    await dish('Cassé', 'not json', 'not json');
+    return f;
+  }
+
+  RecommendationsRepository get repo =>
+      RecommendationsRepository(dbHelper: helper);
+}
+
+List<String> _dishNames(RecommendationResult r) =>
+    r.dishes.map((d) => d.dish.name).toList()..sort();
 
 void main() {
   setUpAll(() {
@@ -48,185 +129,119 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  group('RecommendationService.score', () {
-    test('returns empty list when no restaurants', () {
-      final result = RecommendationService.score(
-        restaurants: [], allDishes: [], userPreferences: [],
-        orderFrequency: {}, favoriteIds: {},
-      );
-      expect(result, isEmpty);
+  // ── Data source: the integration contract ──────────────────────────────────
+  group('RecommendationDataSource', () {
+    test('normalises tags, allergens and profile labels on read', () async {
+      final f = await _Fixture.create(
+          diets: ['vegetarian'], allergies: ['arachides']);
+      final snapshot = await RecommendationDataSource(dbHelper: f.helper)
+          .load(f.clientId);
+
+      expect(snapshot.profile.diets, {'vegetarien'});
+      expect(snapshot.profile.allergens, {'arachides'});
+
+      RecoDish byName(String n) =>
+          snapshot.dishes.firstWhere((d) => d.name == n);
+      expect(byName('Falafel').tags, {'vegetarien', 'halal'});
+      expect(byName('Falafel').allergens, isEmpty); // declared: none
+      expect(byName('Cookie').allergens, {'arachides', 'gluten'});
+      expect(byName('Mystère').allergens, isNull); // not declared
+      expect(byName('Cassé').tags, isEmpty); // malformed JSON
+      expect(byName('Cassé').allergens, isNull);
     });
 
-    test('order frequency adds +3 per order', () {
-      final restaurants = [_resto(1, 'A'), _resto(2, 'B')];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: [],
-        userPreferences: [], orderFrequency: {1: 3}, favoriteIds: {},
+    test('reads orders and favorites of active clients only', () async {
+      final f = await _Fixture.create();
+      final other = await f.auth.register(
+        email: 'gone@reco.test', password: 'Password1!',
+        userType: 'client', resetQuestion: 'Q?', resetAnswer: 'A',
       );
-      expect(result.first.restaurant.id, equals(1));
-      expect(result.first.score, equals(9)); // 3 orders × 3
-    });
+      for (final user in [f.clientId, other.id]) {
+        await f.db.insert('order_history', {
+          'user_id': user, 'restaurant_id': f.restaurantId,
+          'dish_id': f.dishIds['Poulet'],
+          'ordered_at': '2026-10-30T12:00:00Z',
+        });
+      }
+      await f.db.insert('favorite_dishes',
+          {'user_id': f.clientId, 'dish_id': f.dishIds['Falafel']});
+      await f.db.update('users', {'is_active': 0},
+          where: 'id = ?', whereArgs: [other.id]);
 
-    test('favorite adds +5', () {
-      final restaurants = [_resto(1, 'A'), _resto(2, 'B')];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: [],
-        userPreferences: [], orderFrequency: {}, favoriteIds: {2},
-      );
-      expect(result.first.restaurant.id, equals(2));
-      expect(result.first.score, equals(5));
-    });
-
-    test('tag match adds +2 per matching preference', () {
-      final restaurants = [_resto(1, 'A')];
-      final dishes = [_dish(1, 1, ['halal', 'vegan']), _dish(2, 1, ['halal'])];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: dishes,
-        userPreferences: ['halal', 'vegan'], orderFrequency: {},
-        favoriteIds: {},
-      );
-      // dish1: halal(+2)+vegan(+2)=4 ; dish2: halal(+2)=2 → total 6
-      expect(result.first.score, equals(6));
-    });
-
-    test('combined score: order + favorite + tags', () {
-      final restaurants = [_resto(1, 'A'), _resto(2, 'B')];
-      final dishes = [_dish(1, 1, ['halal'])];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: dishes,
-        userPreferences: ['halal'], orderFrequency: {1: 2},
-        favoriteIds: {1},
-      );
-      // resto 1: 2×3=6 + 5 + 2 = 13
-      expect(result.first.id, equals(1));
-      expect(result.first.score, equals(13));
-    });
-
-    test('sorted descending by score', () {
-      final restaurants = [_resto(1, 'Low'), _resto(2, 'High'), _resto(3, 'Mid')];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: [],
-        userPreferences: [], orderFrequency: {1: 0, 2: 5, 3: 2},
-        favoriteIds: {},
-      );
-      expect(result.map((r) => r.restaurant.id).toList(), equals([2, 3, 1]));
-    });
-
-    test('returns max 10 results', () {
-      final restaurants =
-          List.generate(15, (i) => _resto(i + 1, 'R${i + 1}'));
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: [],
-        userPreferences: [], orderFrequency: {}, favoriteIds: {},
-      );
-      expect(result.length, equals(10));
-    });
-
-    test('zero scores → sorted alphabetically by name', () {
-      final restaurants = [_resto(3, 'Zebra'), _resto(1, 'Alpha'), _resto(2, 'Mango')];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: [],
-        userPreferences: [], orderFrequency: {}, favoriteIds: {},
-      );
-      expect(result.map((r) => r.restaurant.name).toList(),
-          equals(['Alpha', 'Mango', 'Zebra']));
-    });
-
-    test('matchingDishes limited to 3', () {
-      final restaurants = [_resto(1, 'A')];
-      final dishes = List.generate(
-          5, (i) => _dish(i + 1, 1, ['halal']));
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: dishes,
-        userPreferences: ['halal'], orderFrequency: {}, favoriteIds: {},
-      );
-      expect(result.first.matchingDishes.length, equals(3));
-    });
-
-    test('no preference match → matchingDishes empty', () {
-      final restaurants = [_resto(1, 'A')];
-      final dishes = [_dish(1, 1, ['vegan'])];
-      final result = RecommendationService.score(
-        restaurants: restaurants, allDishes: dishes,
-        userPreferences: ['halal'], orderFrequency: {}, favoriteIds: {},
-      );
-      expect(result.first.matchingDishes, isEmpty);
+      final snapshot = await RecommendationDataSource(dbHelper: f.helper)
+          .load(f.clientId);
+      expect(snapshot.interactions.map((i) => i.userId).toSet(), {f.clientId});
+      final order = snapshot.interactions
+          .firstWhere((i) => i.kind == InteractionKind.order);
+      expect(order.at, DateTime.utc(2026, 10, 30, 12));
+      expect(order.dishId, f.dishIds['Poulet']);
     });
   });
 
-  // ── RecommendationsRepository integration test ────────────────────────────
+  // ── Repository: filters applied end to end ─────────────────────────────────
   group('RecommendationsRepository', () {
-    test('returns scored list from SQLite data', () async {
-      final helper  = await buildTestDb();
-      final storage = _FakeStorage();
-      final auth    = AuthRepository(dbHelper: helper, storage: storage);
-      final repo    = RecommendationsRepository(dbHelper: helper);
-      final db      = await helper.database;
-
-      // Register client with halal preference
-      final client = await auth.register(
-        email: 'c@reco.test', password: 'Password1!',
-        userType: 'client', resetQuestion: 'Q?', resetAnswer: 'A',
-      );
-      await db.update(
-        'client_profiles',
-        {'dietary_preferences': '["halal"]'},
-        where: 'user_id = ?', whereArgs: [client.id],
-      );
-
-      // Register restaurant
-      final resto = await auth.register(
-        email: 'r@reco.test', password: 'Password1!',
-        userType: 'restaurant', resetQuestion: 'Q?', resetAnswer: 'A',
-        restaurantName: 'Test Bistro',
-      );
-      final rpRows = await db.query('restaurant_profiles',
-          columns: ['id'], where: 'user_id = ?', whereArgs: [resto.id],
-          limit: 1);
-      final rpId = rpRows.first['id'] as int;
-
-      // Insert a halal-tagged dish
-      await db.insert('dishes', {
-        'restaurant_id': rpId, 'name': 'Halal Dish',
-        'price': 12.0, 'is_available': 1, 'tags': '["halal"]',
-      });
-
-      // Add to order history
-      await db.insert('order_history',
-          {'user_id': client.id, 'restaurant_id': rpId});
-
-      final results = await repo.getRecommendations(client.id);
-      expect(results, isNotEmpty);
-      expect(results.first.name, equals('Test Bistro'));
-      // score: 1 order×3=3, 1 tag match×2=2 → 5
-      expect(results.first.score, equals(5));
+    test('a peanut-allergic vegetarian never gets peanuts nor unknown dishes',
+        () async {
+      final f = await _Fixture.create(
+          diets: ['vegetarian'], allergies: ['peanuts']);
+      final result = await f.repo.getRecommendations(f.clientId);
+      // Cookie: peanuts. Mystère: allergens not declared. Poulet: not
+      // vegetarian. Cassé: unreadable tags.
+      expect(_dishNames(result), ['Falafel']);
+      expect(result.restaurants.single.restaurant.name, 'Test Bistro');
+      expect(result.restaurants.single.compatibleDishCount, 1);
     });
 
-    test('returns all restaurants alphabetically when user has no data', () async {
-      final helper  = await buildTestDb();
-      final storage = _FakeStorage();
-      final auth    = AuthRepository(dbHelper: helper, storage: storage);
-      final repo    = RecommendationsRepository(dbHelper: helper);
-
-      final client = await auth.register(
-        email: 'empty@reco.test', password: 'Password1!',
-        userType: 'client', resetQuestion: 'Q?', resetAnswer: 'A',
-      );
-
-      // Two restaurants, no order history
-      for (final name in ['Zara Bistro', 'Alpha Grill']) {
-        // Registered only — no history or favorites needed for this test.
-        await auth.register(
-          email: '${name.toLowerCase().replaceAll(' ', '')}@reco.test',
-          password: 'Password1!', userType: 'restaurant',
-          resetQuestion: 'Q?', resetAnswer: 'A',
-          restaurantName: name,
-        );
-      }
-
-      final results = await repo.getRecommendations(client.id);
-      expect(results.length, equals(2));
-      expect(results.first.name, equals('Alpha Grill')); // alphabetical
+    test('a client without constraints sees every dish', () async {
+      final f = await _Fixture.create();
+      final result = await f.repo.getRecommendations(f.clientId);
+      expect(_dishNames(result),
+          ['Cassé', 'Cookie', 'Falafel', 'Mystère', 'Poulet']);
+      expect(result.coldStart, isTrue);
     });
+  });
+
+  // ── Automatic refresh ──────────────────────────────────────────────────────
+  test('recommendations refresh after favorites, profile and order changes',
+      () async {
+    final f = await _Fixture.create();
+    final counting = _CountingRepository(f.repo);
+    final container = ProviderContainer(overrides: [
+      recommendationsRepositoryProvider.overrideWithValue(counting),
+      favoritesRepositoryProvider
+          .overrideWithValue(FavoritesRepository(dbHelper: f.helper)),
+      profileRepositoryProvider
+          .overrideWithValue(ProfileRepository(dbHelper: f.helper)),
+    ]);
+    addTearDown(container.dispose);
+    final provider = recommendationsProvider(f.clientId);
+    container.listen(provider, (_, _) {});
+
+    // Initial computation: cold start.
+    expect((await container.read(provider.future)).coldStart, isTrue);
+    expect(counting.calls, 1);
+
+    // 1. A favorite dish is added → recomputed, no longer a cold start.
+    await container
+        .read(favoriteDishesProvider(f.clientId).notifier)
+        .toggle(f.dishIds['Falafel']!);
+    expect((await container.read(provider.future)).coldStart, isFalse);
+    expect(counting.calls, 2);
+
+    // 2. Profile preferences change → recomputed with the new filter.
+    await container.read(profileProvider.notifier).updateClientProfile(
+        userId: f.clientId, allergies: ['peanuts']);
+    final afterProfile = await container.read(provider.future);
+    expect(counting.calls, 3);
+    expect(_dishNames(afterProfile), isNot(contains('Cookie')));
+
+    // 3. An order is saved by another module, which signals the change.
+    await f.db.insert('order_history', {
+      'user_id': f.clientId, 'restaurant_id': f.restaurantId,
+      'dish_id': f.dishIds['Poulet'],
+    });
+    container.read(userDataChangesProvider.notifier).changed();
+    await container.read(provider.future);
+    expect(counting.calls, 4);
   });
 }

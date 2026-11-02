@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/data/user_data_changes.dart';
 import '../data/models/client_profile_model.dart';
 import '../data/models/restaurant_profile_model.dart';
 import '../data/repositories/profile_repository.dart';
@@ -56,9 +57,13 @@ class ProfileState {
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
 class ProfileNotifier extends StateNotifier<ProfileState> {
-  ProfileNotifier(this._repo) : super(const ProfileState());
+  ProfileNotifier(this._repo, {this.onClientPreferencesChanged})
+      : super(const ProfileState());
 
   final ProfileRepository _repo;
+
+  /// Called after a client profile (diets, allergies…) was saved.
+  final void Function()? onClientPreferencesChanged;
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +106,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         dietaryPreferences:  dietaryPreferences,
         allergies:           allergies,
       );
+      onClientPreferencesChanged?.call();
       await loadClientProfile(userId);
       return true;
     } catch (e) {
@@ -187,6 +193,12 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
+/// Saving a client profile bumps [userDataChangesProvider], so the
+/// recommendations follow new diets and allergies immediately.
 final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>(
-  (ref) => ProfileNotifier(ref.watch(profileRepositoryProvider)),
+  (ref) => ProfileNotifier(
+    ref.watch(profileRepositoryProvider),
+    onClientPreferencesChanged: () =>
+        ref.read(userDataChangesProvider.notifier).changed(),
+  ),
 );
