@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/photo_image.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_button.dart';
@@ -24,8 +25,6 @@ class _EditRestaurantProfileScreenState
   final _addressCtrl = TextEditingController();
   final _cuisineCtrl = TextEditingController();
   final _descCtrl    = TextEditingController();
-  final _latCtrl     = TextEditingController();
-  final _lngCtrl     = TextEditingController();
   bool _initialized  = false;
 
   @override
@@ -34,8 +33,6 @@ class _EditRestaurantProfileScreenState
     _addressCtrl.dispose();
     _cuisineCtrl.dispose();
     _descCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
     super.dispose();
   }
 
@@ -46,8 +43,6 @@ class _EditRestaurantProfileScreenState
     _addressCtrl.text = profile.address ?? '';
     _cuisineCtrl.text = profile.cuisineType ?? '';
     _descCtrl.text    = profile.description ?? '';
-    _latCtrl.text     = profile.latitude?.toString() ?? '';
-    _lngCtrl.text     = profile.longitude?.toString() ?? '';
   }
 
   Future<void> _addPhoto() async {
@@ -89,8 +84,6 @@ class _EditRestaurantProfileScreenState
               address:     _addressCtrl.text.trim(),
               cuisineType: _cuisineCtrl.text.trim(),
               description: _descCtrl.text.trim(),
-              latitude:    double.tryParse(_latCtrl.text.trim()),
-              longitude:   double.tryParse(_lngCtrl.text.trim()),
             );
 
     if (!mounted) return;
@@ -165,27 +158,11 @@ class _EditRestaurantProfileScreenState
                 controller: _addressCtrl,
                 prefixIcon: Icons.location_on_outlined,
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      label: 'Latitude',
-                      controller: _latCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AppTextField(
-                      label: 'Longitude',
-                      controller: _lngCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 6),
+              const Text(
+                'La position sur la carte est calculée à partir de l\'adresse '
+                '(OpenStreetMap).',
+                style: TextStyle(fontSize: 12, color: AppColors.grey500),
               ),
               const SizedBox(height: 16),
               AppTextField(

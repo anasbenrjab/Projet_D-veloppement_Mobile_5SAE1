@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -127,8 +128,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     String?              description,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
+    final bool needsGeocoding;
     try {
-      await _repo.updateRestaurantProfile(
+      needsGeocoding = await _repo.updateRestaurantProfile(
         userId:       userId,
         name:         name,
         address:      address,
@@ -139,10 +141,27 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         description:  description,
       );
       await loadRestaurantProfile(userId);
-      return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _parseError(e));
       return false;
+    }
+    // The save is done; the map position follows when Nominatim answers.
+    if (needsGeocoding) pendingGeocoding = _geocodeInBackground(userId);
+    return true;
+  }
+
+  /// The background geocoding started by the last save, if any.  Tests await
+  /// it; the UI does not.
+  @visibleForTesting
+  Future<void>? pendingGeocoding;
+
+  /// Never throws: a geocoding failure only means "no map".
+  Future<void> _geocodeInBackground(int userId) async {
+    try {
+      final updated = await _repo.geocodeRestaurantAddress(userId);
+      if (updated && mounted) await loadRestaurantProfile(userId);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Profile] geocoding skipped: $e');
     }
   }
 

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/geocoding_service.dart';
 import '../../../../core/utils/photo_files.dart';
 import '../../../../core/utils/photo_ref.dart';
 import '../../domain/profile_exception.dart';
@@ -26,10 +27,12 @@ final _kPhoneRegex = RegExp(r'^\+?[\d\s\-().]{7,}$');
 // ── Repository ────────────────────────────────────────────────────────────────
 
 class ProfileRepository {
-  ProfileRepository({DatabaseHelper? dbHelper})
-      : _db = dbHelper ?? DatabaseHelper.instance;
+  ProfileRepository({DatabaseHelper? dbHelper, GeocodingService? geocoder})
+      : _db = dbHelper ?? DatabaseHelper.instance,
+        _geocoder = geocoder ?? GeocodingService();
 
   final DatabaseHelper _db;
+  final GeocodingService _geocoder;
 
   Future<Database> get _database => _db.database;
 
@@ -141,7 +144,13 @@ class ProfileRepository {
   /// - Throws [ProfileException] if [name] would become empty.
   /// - Validates [description] length.
   /// - Always sets [updated_at].
-  Future<void> updateRestaurantProfile({
+  /// - When [address] changes and no coordinates are passed, the old
+  ///   coordinates are cleared (they belong to the old address).
+  ///
+  /// Never calls the network.  Returns `true` when the stored address should
+  /// be geocoded with [geocodeRestaurantAddress]: it changed, or it has no
+  /// coordinates yet (e.g. an earlier geocoding attempt failed).
+  Future<bool> updateRestaurantProfile({
     required int userId,
     String? name,
     String? address,
@@ -157,6 +166,24 @@ class ProfileRepository {
     final db  = await _database;
     final now = DateTime.now().toUtc().toIso8601String();
 
+    final current = await db.query(
+      'restaurant_profiles',
+      columns: ['address', 'latitude', 'longitude'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    final oldAddress = _normalizeAddress(
+        current.isEmpty ? null : current.first['address'] as String?);
+    final newAddress =
+        address == null ? oldAddress : _normalizeAddress(address);
+    final addressChanged = newAddress != oldAddress;
+    final coordsGiven = latitude != null && longitude != null;
+    final clearCoords = addressChanged && !coordsGiven;
+    final hadCoords = current.isNotEmpty &&
+        current.first['latitude'] != null &&
+        current.first['longitude'] != null;
+
     await db.update(
       'restaurant_profiles',
       {
@@ -164,6 +191,7 @@ class ProfileRepository {
         'address':      ?address,
         'latitude':     ?latitude,
         'longitude':    ?longitude,
+        if (clearCoords) ...{'latitude': null, 'longitude': null},
         if (openingHours != null)
           'opening_hours': jsonEncode(openingHours),
         'cuisine_type': ?cuisineType,
@@ -173,7 +201,46 @@ class ProfileRepository {
       where: 'user_id = ?',
       whereArgs: [userId],
     );
+
+    if (newAddress.isEmpty || coordsGiven) return false;
+    return addressChanged || !hadCoords;
   }
+
+  /// Geocodes the stored address of [userId]'s restaurant with
+  /// [GeocodingService] and stores the coordinates.
+  ///
+  /// Returns `true` if coordinates were written.  Returns `false` — never
+  /// throws for a network problem — when there is no address, the service
+  /// finds nothing or is unreachable, or the address changed meanwhile (the
+  /// coordinates are only written for the address that was looked up).
+  Future<bool> geocodeRestaurantAddress(int userId) async {
+    final db = await _database;
+    final rows = await db.query(
+      'restaurant_profiles',
+      columns: ['address'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return false;
+    final address = rows.first['address'] as String?;
+    if (_normalizeAddress(address).isEmpty) return false;
+
+    final point = await _geocoder.geocode(address!);
+    if (point == null) return false;
+
+    final updated = await db.update(
+      'restaurant_profiles',
+      {'latitude': point.latitude, 'longitude': point.longitude},
+      where: 'user_id = ? AND address = ?',
+      whereArgs: [userId, address],
+    );
+    return updated > 0;
+  }
+
+  /// Trimmed, single-spaced, case-insensitive form used to compare addresses.
+  static String _normalizeAddress(String? address) =>
+      (address ?? '').trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
   // ── Photo management ──────────────────────────────────────────────────────
 
@@ -394,5 +461,5 @@ class ProfileRepository {
 // ── Riverpod provider ─────────────────────────────────────────────────────────
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
-  (_) => ProfileRepository(),
+  (ref) => ProfileRepository(geocoder: ref.watch(geocodingServiceProvider)),
 );
