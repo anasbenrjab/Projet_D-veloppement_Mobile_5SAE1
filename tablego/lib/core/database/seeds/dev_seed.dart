@@ -1,4 +1,4 @@
-// Dev seed — reproduces the same test data as tablego-backend/seeds/seed.js.
+// Dev seed — demo accounts, restaurants and dishes for local testing.
 // Runs only in kDebugMode. Idempotent: checked by client email before inserting.
 //
 // IMPORTANT: [DevSeed.run] is called from [DatabaseHelper._onCreate], which
