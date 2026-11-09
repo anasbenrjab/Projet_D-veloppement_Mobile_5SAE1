@@ -41,7 +41,9 @@ class TableGoApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      // Screens still use fixed light colours (AppColors); dark mode stays off
+      // until they read from the colour scheme.
+      themeMode: ThemeMode.light,
       initialRoute: Routes.splash,
       routes: {
         Routes.splash:                (_) => const SplashScreen(),
