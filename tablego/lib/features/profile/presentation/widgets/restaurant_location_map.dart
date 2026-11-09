@@ -67,9 +67,23 @@ class RestaurantLocationMap extends StatelessWidget {
                 ),
               ],
             ),
-            // Required by the OSM tile usage policy.
-            const SimpleAttributionWidget(
-              source: Text('OpenStreetMap contributors'),
+            // Required by the OSM tile usage policy.  Not flutter_map's
+            // SimpleAttributionWidget: its fixed-size text overflows on
+            // narrow phones.
+            const Align(
+              alignment: Alignment.bottomRight,
+              child: ColoredBox(
+                color: Color(0xCCFFFFFF),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    '© OpenStreetMap contributors',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: AppColors.textDark),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
