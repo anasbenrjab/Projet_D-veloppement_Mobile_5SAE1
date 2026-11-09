@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:isolate';
 import 'dart:math';
 
@@ -101,7 +102,9 @@ class PasswordHasher {
     );
 
     final derivedKey = await algorithm.deriveKey(
-      secretKey: SecretKey(password.codeUnits),
+      // UTF-8 bytes: `codeUnits` gives UTF-16 units, which do not fit in a
+      // byte for characters above U+00FF.
+      secretKey: SecretKey(utf8.encode(password)),
       nonce: saltBytes,
     );
     final keyBytes = await derivedKey.extractBytes();
