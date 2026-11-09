@@ -39,7 +39,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     final state = ref.read(authProvider);
     if (state.isLoggedIn) {
-      Navigator.of(context).pushReplacementNamed(Routes.home);
+      Navigator.of(context)
+          .pushReplacementNamed(Routes.homeFor(state.user?.userType));
     } else if (state.error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(state.error!)));

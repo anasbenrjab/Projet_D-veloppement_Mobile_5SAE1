@@ -16,4 +16,9 @@ class Routes {
   static const String restaurantProfile    = '/restaurant-profile';
   static const String editRestaurantProfile = '/edit-restaurant-profile';
   static const String favorites            = '/favorites';
+
+  /// Landing route for an authenticated user: restaurant accounts go to
+  /// their restaurant screen, everyone else to the client home.
+  static String homeFor(String? userType) =>
+      userType == 'restaurant' ? restaurantProfile : home;
 }

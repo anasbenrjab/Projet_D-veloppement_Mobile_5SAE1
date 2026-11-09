@@ -66,8 +66,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!mounted) return;
 
-    final isLoggedIn = !restoreFailed && ref.read(authProvider).isLoggedIn;
-    final target = isLoggedIn ? Routes.home : Routes.login;
+    final authState = ref.read(authProvider);
+    final isLoggedIn = !restoreFailed && authState.isLoggedIn;
+    final target =
+        isLoggedIn ? Routes.homeFor(authState.user?.userType) : Routes.login;
     if (kDebugMode) {
       final errorDetail = restoreError == null
           ? ''

@@ -68,7 +68,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!mounted) return;
     final authState = ref.read(authProvider);
     if (authState.isLoggedIn) {
-      Navigator.of(context).pushReplacementNamed(Routes.home);
+      Navigator.of(context)
+          .pushReplacementNamed(Routes.homeFor(authState.user?.userType));
     } else if (authState.error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(authState.error!)));
