@@ -110,32 +110,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onPressed: _submit,
                   isLoading: isLoading,
                 ),
-                const SizedBox(height: 24),
-                // Divider
-                Row(children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('ou',
-                        style: TextStyle(color: AppColors.grey500)),
-                  ),
-                  const Expanded(child: Divider()),
-                ]),
-                const SizedBox(height: 16),
-                // Social login is not available in this local-only build.
-                _SocialButton(
-                  label: 'Continuer avec Google',
-                  iconPath: 'G',
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Bientôt disponible'))),
-                ),
-                const SizedBox(height: 12),
-                _SocialButton(
-                  label: 'Continuer avec Apple',
-                  iconPath: '',
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Bientôt disponible'))),
-                ),
                 const SizedBox(height: 32),
                 // [Wrap] instead of [Row] so the two elements stack on narrow
                 // widths instead of overflowing.
@@ -160,32 +134,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton(
-      {required this.label, required this.iconPath, required this.onTap});
-  final String label, iconPath;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.grey300),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-        ),
-        child: Text(label,
-            style: const TextStyle(
-                color: AppColors.textDark, fontWeight: FontWeight.w500)),
       ),
     );
   }

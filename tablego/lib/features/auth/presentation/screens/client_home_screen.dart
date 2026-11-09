@@ -102,33 +102,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    // ── Search bar (placeholder for Module 2) ──────────────
-                    GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Recherche — Module 2'))),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.grey300),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.search,
-                                color: AppColors.grey500, size: 20),
-                            SizedBox(width: 10),
-                            Text('Restaurants, plats...',
-                                style: TextStyle(
-                                    color: AppColors.grey500,
-                                    fontSize: 14)),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 28),
                     // ── Recommendations header ─────────────────────────────
                     Row(
@@ -167,13 +140,13 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-                child: const Text('À proximité',
+                child: const Text('Vos restaurants favoris',
                     style: TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
-            // ── Nearby (uses favorites as placeholder — TODO Module 2) ─────
-            const _NearbyList(),
+            // ── Favorite restaurants ───────────────────────────────────────
+            const _FavoriteRestaurantsList(),
           ],
         ),
       ),
@@ -211,12 +184,11 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   }
 }
 
-// ── _NearbyList ───────────────────────────────────────────────────────────────
-// TODO(module-2): replace with actual nearby/search API.
-// Currently uses the current user's favorite restaurants as placeholder data.
-// TODO(team): replace placeholder with nearby restaurants feature
-class _NearbyList extends ConsumerWidget {
-  const _NearbyList();
+// ── _FavoriteRestaurantsList ─────────────────────────────────────────────────
+/// The current client's favorite restaurants, with an empty state that points
+/// to the favorites screen.
+class _FavoriteRestaurantsList extends ConsumerWidget {
+  const _FavoriteRestaurantsList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -231,6 +203,30 @@ class _NearbyList extends ConsumerWidget {
     if (state.isLoading && state.restaurants.isEmpty) {
       return const SliverToBoxAdapter(
           child: Center(child: CircularProgressIndicator()));
+    }
+
+    if (state.restaurants.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Aucun restaurant favori pour le moment. Touchez le cœur '
+                'sur un restaurant pour le retrouver ici.',
+                style: TextStyle(color: AppColors.grey500, fontSize: 14),
+              ),
+              TextButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(Routes.favorites),
+                icon: const Icon(Icons.favorite_outline),
+                label: const Text('Voir mes favoris'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return SliverPadding(
