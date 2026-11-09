@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/utils/password_hasher.dart';
+import '../../../../core/utils/validators.dart';
 import '../../domain/auth_exception.dart';
 import '../models/user_model.dart';
 
@@ -78,6 +79,15 @@ class AuthRepository {
     return result;
   }
 
+  /// Throws [AuthException] when [password] breaks the shared password rule
+  /// ([Validators.passwordError]).
+  void _checkPasswordRule(String password) {
+    final error = Validators.passwordError(password);
+    if (error != null) {
+      throw AuthException('Mot de passe invalide : ${error.toLowerCase()}');
+    }
+  }
+
   // ── Session ──────────────────────────────────────────────────────────────────
 
   /// Saves the user id to secure storage as the active session.
@@ -141,18 +151,12 @@ class AuthRepository {
     String? restaurantName, // required when userType == 'restaurant'
   }) async {
     // ── Input validation ────────────────────────────────────────────────────
+    // Same rules as the form (Validators): the repository is the last line of
+    // defence.
     final normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail.isEmpty) {
-      throw const AuthException('L\'email est requis');
-    }
-    // Basic format check — full regex validation is done in the form layer,
-    // but we guard here too because the repository is the last line of defence.
-    if (!normalizedEmail.contains('@') || !normalizedEmail.contains('.')) {
-      throw const AuthException('Format d\'email invalide');
-    }
-    if (password.length < 8) {
-      throw const AuthException('Le mot de passe doit contenir au moins 8 caractères');
-    }
+    final emailError = Validators.emailError(normalizedEmail);
+    if (emailError != null) throw AuthException(emailError);
+    _checkPasswordRule(password);
     if (!['client', 'restaurant'].contains(userType)) {
       throw const AuthException('Type d\'utilisateur invalide');
     }
@@ -347,10 +351,7 @@ class AuthRepository {
     required String answer,
     required String newPassword,
   }) async {
-    if (newPassword.length < 8) {
-      throw const AuthException(
-          'Le nouveau mot de passe doit contenir au moins 8 caractères');
-    }
+    _checkPasswordRule(newPassword);
 
     const genericError =
         AuthException('Réinitialisation impossible. Vérifiez vos informations.');
@@ -406,10 +407,7 @@ class AuthRepository {
     required String currentPassword,
     required String newPassword,
   }) async {
-    if (newPassword.length < 8) {
-      throw const AuthException(
-          'Le nouveau mot de passe doit contenir au moins 8 caractères');
-    }
+    _checkPasswordRule(newPassword);
 
     final db = await _database;
     final rows = await db.query(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../providers/auth_provider.dart';
@@ -146,14 +147,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   prefixIcon: Icons.email_outlined,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Email requis';
-                    final trimmed = v.trim();
-                    if (!trimmed.contains('@') || !trimmed.contains('.')) {
-                      return 'Format d\'email invalide';
-                    }
-                    return null;
-                  },
+                  validator: Validators.emailError,
                 ),
                 const SizedBox(height: 16),
 
@@ -163,12 +157,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _passCtrl,
                   isPassword: true,
                   prefixIcon: Icons.lock_outline,
-                  validator: (v) {
-                    if (v == null || v.length < 8) {
-                      return 'Au moins 8 caractères';
-                    }
-                    return null;
-                  },
+                  validator: Validators.passwordError,
                 ),
                 const SizedBox(height: 16),
                 AppTextField(

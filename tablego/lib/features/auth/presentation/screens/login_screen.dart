@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../providers/auth_provider.dart';
@@ -75,11 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   prefixIcon: Icons.email_outlined,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Email requis';
-                    if (!v.contains('@')) return 'Email invalide';
-                    return null;
-                  },
+                  validator: Validators.emailError,
                 ),
                 const SizedBox(height: 16),
                 AppTextField(
@@ -88,11 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _passCtrl,
                   isPassword: true,
                   prefixIcon: Icons.lock_outline,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Mot de passe requis';
-                    if (v.length < 6) return 'Au moins 6 caractères';
-                    return null;
-                  },
+                  validator: Validators.passwordError,
                 ),
                 const SizedBox(height: 8),
                 Align(

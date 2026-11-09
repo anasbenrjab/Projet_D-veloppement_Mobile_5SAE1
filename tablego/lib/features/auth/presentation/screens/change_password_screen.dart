@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../providers/auth_provider.dart';
@@ -79,12 +80,7 @@ class _ChangePasswordScreenState
                 controller: _newCtrl,
                 isPassword: true,
                 prefixIcon: Icons.lock_reset_outlined,
-                validator: (v) {
-                  if (v == null || v.length < 8) {
-                    return 'Au moins 8 caractères';
-                  }
-                  return null;
-                },
+                validator: Validators.passwordError,
               ),
               const SizedBox(height: 16),
               AppTextField(
