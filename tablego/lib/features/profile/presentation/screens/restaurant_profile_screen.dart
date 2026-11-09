@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/photo_image.dart';
 import '../../providers/profile_provider.dart';
+import '../widgets/restaurant_location_map.dart';
 
 class RestaurantProfileScreen extends ConsumerStatefulWidget {
   const RestaurantProfileScreen({super.key});
@@ -122,6 +123,12 @@ class _RestaurantProfileScreenState
                       ],
                     ),
                   ],
+                  // ── Location (Nominatim + OpenStreetMap) ─────────────────
+                  const SizedBox(height: 16),
+                  RestaurantLocationMap(
+                    latitude:  profile?.latitude,
+                    longitude: profile?.longitude,
+                  ),
                   if (description.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(description,
