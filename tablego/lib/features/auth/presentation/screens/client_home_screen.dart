@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/photo_ref.dart';
 import '../../../favorites/providers/favorites_provider.dart';
 import '../../../profile/providers/profile_provider.dart';
 import '../../../recommendations/presentation/widgets/recommendation_carousel.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/restaurant_card.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({super.key});
@@ -50,7 +50,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         ? (profileState.data! as ClientData).profile
         : null;
     final name = clientProfile?.fullName ?? 'vous';
-    final avatarImage = photoImageProvider(clientProfile?.photoPath);
+    final fullName = clientProfile?.fullName?.trim() ?? '';
+    final avatarName = fullName.isNotEmpty
+        ? fullName
+        : ref.watch(authProvider).user?.email ?? '';
 
     return Scaffold(
       body: SafeArea(
@@ -84,20 +87,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                         GestureDetector(
                           onTap: () =>
                               Navigator.of(context).pushNamed(Routes.profile),
-                          child: CircleAvatar(
-                            radius: 22,
-                            backgroundColor:
-                                AppColors.primary.withValues(alpha: 0.15),
-                            backgroundImage: avatarImage,
-                            // A photo that fails to load leaves the tinted
-                            // background instead of reporting an error.
-                            onBackgroundImageError: avatarImage == null
-                                ? null
-                                : (_, _) {},
-                            child: avatarImage == null
-                                ? const Icon(Icons.person,
-                                    color: AppColors.primary, size: 22)
-                                : null,
+                          child: UserAvatar(
+                            photoPath: clientProfile?.photoPath,
+                            name: avatarName,
                           ),
                         ),
                       ],

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- DiceBear avatars (web service). Debug/profile manifests already have it. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="tablego"
         android:name="${applicationName}"

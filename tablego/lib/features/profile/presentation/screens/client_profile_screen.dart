@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/photo_ref.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 
@@ -70,7 +70,13 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
             Center(
               child: Column(
                 children: [
-                  _Avatar(photoPath: photoPath, radius: 52),
+                  UserAvatar(
+                    photoPath: photoPath,
+                    name: (profile?.fullName?.trim().isNotEmpty ?? false)
+                        ? profile!.fullName!
+                        : email,
+                    radius: 52,
+                  ),
                   const SizedBox(height: 12),
                   Text(name,
                       style: const TextStyle(
@@ -142,32 +148,6 @@ class _ClientProfileScreenState extends ConsumerState<ClientProfileScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── _Avatar ───────────────────────────────────────────────────────────────────
-
-/// Shows the profile photo — a local file path on mobile, a `data:` URI on web.
-/// Falls back to the default icon when [photoPath] is null or unresolvable, so
-/// the screen never crashes when a file has been deleted externally.
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.photoPath, required this.radius});
-
-  final String? photoPath;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final image = photoImageProvider(photoPath);
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-      backgroundImage: image,
-      child: image == null
-          ? Icon(Icons.person, size: radius, color: AppColors.primary)
-          : null,
     );
   }
 }
