@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/data/current_restaurant.dart' as current;
+import '../../../../core/data/validation_exception.dart';
 import '../../../../core/database/database_helper.dart';
 import '../models/dish_model.dart';
 
@@ -81,12 +82,25 @@ class DishRepository {
 
   // ── Write ─────────────────────────────────────────────────────────────────
 
+  /// Safety rules (integration): a dish needs a name and a price >= 0.
+  static void _validate(DishModel dish) {
+    if (dish.name.trim().isEmpty) {
+      throw const ValidationException('Le nom du plat est obligatoire.');
+    }
+    if (dish.price.isNaN || dish.price < 0) {
+      throw const ValidationException(
+          'Le prix du plat doit être positif ou nul.');
+    }
+  }
+
   Future<DishModel> createDish(DishModel dish) async {
+    _validate(dish);
     final id = await (await _database).insert('dishes', dish.toMap());
     return dish.copyWith(id: id);
   }
 
   Future<DishModel> updateDish(DishModel dish) async {
+    _validate(dish);
     // A dish never changes restaurant, and keeps its creation date.
     final map = dish.toMap()
       ..remove('id')

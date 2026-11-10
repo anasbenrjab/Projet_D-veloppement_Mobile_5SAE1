@@ -3,6 +3,7 @@
 // (status); rollback, constraints, cascades and the order_history view.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tablego/core/data/validation_exception.dart';
 import 'package:tablego/features/commande/data/models/cart_item_model.dart';
 import 'package:tablego/features/commande/data/models/order_model.dart';
 import 'package:tablego/features/commande/data/repositories/cart_repository.dart';
@@ -168,6 +169,21 @@ void main() {
           t.db.insert('order_items', {'order_id': o.id, 'dish_id': tajine,
               'dish_name': 'T', 'dish_price': 1.0, 'quantity': 0}),
           throwsConstraint);
+    });
+  });
+
+  group('safety rules', () {
+    test('only reçue / en préparation / prête are accepted', () async {
+      final o = await order(alice);
+      for (final bad in ['livrée', 'READY', '', 'recue']) {
+        await expectLater(repo.updateStatus(o.id!, bad),
+            throwsA(isA<ValidationException>()), reason: bad);
+      }
+      expect((await repo.getOrderById(o.id!))!.status, OrderStatus.received);
+      for (final ok in OrderStatus.all) {
+        await repo.updateStatus(o.id!, ok);
+        expect((await repo.getOrderById(o.id!))!.status, ok);
+      }
     });
   });
 }

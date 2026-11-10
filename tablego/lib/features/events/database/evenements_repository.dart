@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/data/validation_exception.dart';
 import '../../../core/database/database_helper.dart';
 import '../models/evenement.dart';
 import '../models/reservation.dart';
@@ -36,12 +37,31 @@ class EvenementsRepository {
   // CRUD : RÉSERVATIONS
   // ---------------------------------------------------------------------------
 
+  // ── Règles de sécurité (intégration) ─────────────────────────────────────
+
+  static void _verifierStatut(String statut) {
+    if (!Reservation.statuts.contains(statut)) {
+      throw ValidationException('Statut de réservation invalide : « $statut ».');
+    }
+  }
+
+  /// 0 <= places restantes <= places totales.
+  static void _verifierPlaces(Evenement e) {
+    if (e.placesRestantes < 0 || e.placesRestantes > e.placesTotal) {
+      throw const ValidationException(
+          'Places restantes invalides : elles doivent être entre 0 et le '
+          'nombre total de places.');
+    }
+  }
+
   Future<int> insererReservation(Reservation r) async {
+    _verifierStatut(r.statut);
     final db = await database;
     return db.insert('reservation', r.toMap());
   }
 
   Future<int> modifierReservation(Reservation r) async {
+    _verifierStatut(r.statut);
     final db = await database;
     return db.update(
       'reservation',
@@ -88,6 +108,7 @@ class EvenementsRepository {
 
   /// Accepter / refuser / annuler / marquer honorée ou no-show.
   Future<int> changerStatutReservation(int id, String statut) async {
+    _verifierStatut(statut);
     final db = await database;
     return db.update(
       'reservation',
@@ -160,11 +181,13 @@ class EvenementsRepository {
   // ---------------------------------------------------------------------------
 
   Future<int> insererEvenement(Evenement e) async {
+    _verifierPlaces(e);
     final db = await database;
     return db.insert('evenement', e.toMap());
   }
 
   Future<int> modifierEvenement(Evenement e) async {
+    _verifierPlaces(e);
     final db = await database;
     return db.update(
       'evenement',

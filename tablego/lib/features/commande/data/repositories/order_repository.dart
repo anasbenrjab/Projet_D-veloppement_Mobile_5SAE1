@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/data/current_restaurant.dart' as current;
+import '../../../../core/data/validation_exception.dart';
 import '../../../../core/database/database_helper.dart';
 import '../models/order_model.dart';
 import '../models/cart_item_model.dart';
@@ -154,7 +155,11 @@ class OrderRepository {
 
   // ── Update ─────────────────────────────────────────────────────────────────
 
+  /// Only [OrderStatus.all] values are accepted (integration safety rule).
   Future<void> updateStatus(int orderId, String newStatus) async {
+    if (!OrderStatus.all.contains(newStatus)) {
+      throw ValidationException('Statut de commande invalide : « $newStatus ».');
+    }
     await (await _database).update(
       'orders',
       {'status': newStatus},

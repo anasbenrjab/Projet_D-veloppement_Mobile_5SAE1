@@ -3,6 +3,7 @@
 // read, update, delete; constraints and cascades.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tablego/core/data/validation_exception.dart';
 import 'package:tablego/features/events/database/evenements_repository.dart';
 import 'package:tablego/features/events/models/evenement.dart';
 import 'package:tablego/features/events/models/reservation.dart';
@@ -198,5 +199,56 @@ void main() {
     expect(r.nom, 'Le Gourmet');
     expect(r.capaciteMax, 40);
     await expectLater(repo.restaurant(999), throwsA(isA<StateError>()));
+  });
+
+  group('safety rules', () {
+    test('reservation status: only the allowed values (create, modify, '
+        'change)', () async {
+      await expectLater(repo.insererReservation(resa(alice, statut: 'perdue')),
+          throwsA(isA<ValidationException>()));
+      expect(await t.count('reservation'), 0);
+
+      final id = await repo.insererReservation(resa(alice));
+      await expectLater(repo.changerStatutReservation(id, 'confirmée'),
+          throwsA(isA<ValidationException>()));
+      final r = await byId(id);
+      await expectLater(
+          repo.modifierReservation(Reservation(
+            id: id, clientId: alice, restaurantId: restaurantId,
+            date: r.date, heure: r.heure, nbPersonnes: 3, statut: '',
+            createdAt: r.createdAt,
+          )),
+          throwsA(isA<ValidationException>()));
+      expect((await byId(id)).statut, Reservation.statutEnAttente);
+      expect((await byId(id)).nbPersonnes, 2);
+
+      for (final ok in Reservation.statuts) {
+        await repo.changerStatutReservation(id, ok);
+        expect((await byId(id)).statut, ok);
+      }
+    });
+
+    test('event: 0 <= places restantes <= places totales', () async {
+      Evenement e({int? id, required int total, required int restantes}) =>
+          Evenement(
+            id: id, restaurantId: restaurantId, titre: 'Soirée',
+            type: Evenement.typeSoiree, date: '2099-05-01', description: '',
+            placesTotal: total, placesRestantes: restantes,
+          );
+      for (final (total, restantes) in [(10, 11), (10, -1), (-1, -1)]) {
+        await expectLater(
+            repo.insererEvenement(e(total: total, restantes: restantes)),
+            throwsA(isA<ValidationException>()),
+            reason: '$total/$restantes');
+      }
+      expect(await t.count('evenement'), 0);
+
+      final id = await repo.insererEvenement(e(total: 10, restantes: 10));
+      expect(await repo.insererEvenement(e(total: 10, restantes: 0)), isNotNull);
+      await expectLater(
+          repo.modifierEvenement(e(id: id, total: 5, restantes: 8)),
+          throwsA(isA<ValidationException>()));
+      expect((await repo.evenements(restaurantId)).first.placesRestantes, 10);
+    });
   });
 }

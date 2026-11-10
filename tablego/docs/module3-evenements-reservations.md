@@ -41,6 +41,26 @@ samedi presque complet, 3 événements) sont rattachées à `resto@test.com`.
 
 Schéma : `lib/core/database/tables/events_tables.dart` (version 5 de la base).
 
+## Règles de sécurité dans le repository (ajoutées à l'intégration)
+
+Les écrans respectaient déjà ces règles (statuts fixés par les boutons,
+places restantes recalculées et bornées par le formulaire d'événement) ;
+`EvenementsRepository` les vérifie maintenant aussi. Une donnée refusée lève
+une `ValidationException` (`lib/core/data/validation_exception.dart`) dont le
+message français s'affiche tel quel dans les SnackBar « Erreur : … » ; rien
+n'est écrit en base.
+
+| Méthode | Règle | Message |
+|---|---|---|
+| `insererReservation`, `modifierReservation`, `changerStatutReservation` | statut parmi `Reservation.statuts` : en_attente, acceptee, refusee, annulee, honoree, no_show | « Statut de réservation invalide : « … ». » |
+| `insererEvenement`, `modifierEvenement` | 0 ≤ places restantes ≤ places totales | « Places restantes invalides : elles doivent être entre 0 et le nombre total de places. » |
+
+`Reservation.statuts` est une nouvelle constante du modèle qui regroupe les
+six statuts existants (aucune valeur n'a changé).
+
+Tests : `test/repositories/evenements_repository_crud_test.dart` (groupe
+« safety rules »).
+
 ## Structure
 
 ```

@@ -74,6 +74,29 @@ sqflite sur mobile, sqlite3-wasm sur le web). Les tables du module sont dans
 | `order_items` | `order_id` → `orders.id`, `dish_id` → `dishes.id` (NULL si le plat est supprimé ; nom et prix sont copiés à la commande) |
 | `order_history` | **vue** sur `orders` + `order_items`, lue par les recommandations du Module 1 |
 
+## Règles de sécurité dans les repositories (ajoutées à l'intégration)
+
+Les formulaires vérifiaient déjà ces règles ; les repositories les vérifient
+maintenant aussi (« dernière ligne de défense », même si un autre écran ou un
+bug envoie une valeur incorrecte). Une donnée refusée lève une
+`ValidationException` (`lib/core/data/validation_exception.dart`) dont le
+message est en français et s'affiche tel quel dans l'écran ; rien n'est écrit
+en base.
+
+| Repository | Règle | Message |
+|---|---|---|
+| `DishRepository.createDish` / `updateDish` | nom non vide (espaces seuls refusés) | « Le nom du plat est obligatoire. » |
+| `DishRepository.createDish` / `updateDish` | prix ≥ 0 (un plat gratuit à 0 est accepté) | « Le prix du plat doit être positif ou nul. » |
+| `OrderRepository.updateStatus` | statut parmi `OrderStatus.all` : reçue, en préparation, prête | « Statut de commande invalide : « … ». » |
+
+Autres changements du même type :
+
+- `updateDish` n'écrit jamais `id`, `restaurant_id` ni `created_at` : un plat
+  ne change pas de restaurant (correction du bug « Modifier ne fait rien »).
+
+Tests : `test/repositories/dish_repository_crud_test.dart` et
+`order_repository_crud_test.dart` (groupes « safety rules »).
+
 ## Structure
 
 ```

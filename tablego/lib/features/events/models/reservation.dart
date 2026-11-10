@@ -13,6 +13,12 @@ class Reservation {
   static const String statutHonoree = 'honoree';
   static const String statutNoShow = 'no_show';
 
+  /// Toutes les valeurs autorisées de `statut` (contrôlées par le repository).
+  static const List<String> statuts = [
+    statutEnAttente, statutAcceptee, statutRefusee, statutAnnulee,
+    statutHonoree, statutNoShow,
+  ];
+
   final int? id; // null tant que la réservation n'est pas enregistrée
   final int clientId;
   final int restaurantId;

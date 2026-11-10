@@ -3,6 +3,7 @@
 // form case), toggle, delete; FK constraints and cascades.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tablego/core/data/validation_exception.dart';
 import 'package:tablego/features/menu/data/models/dish_model.dart';
 import 'package:tablego/features/menu/data/repositories/dish_repository.dart';
 
@@ -181,5 +182,44 @@ void main() {
   test('NOT NULL columns are enforced by SQLite', () async {
     expect(t.db.insert('dishes', {'restaurant_id': restaurantId, 'price': 1}),
         throwsConstraint); // no name
+  });
+
+  group('safety rules', () {
+    test('blank name or negative price → ValidationException, nothing '
+        'written', () async {
+      for (final bad in [
+        dish('   '),
+        dish(''),
+        dish('Plat', price: -0.5),
+        dish('Plat', price: double.nan),
+      ]) {
+        await expectLater(
+            repo.createDish(bad), throwsA(isA<ValidationException>()));
+      }
+      expect(await t.count('dishes'), 0);
+    });
+
+    test('a free dish (price 0) is allowed', () async {
+      expect((await repo.createDish(dish('Pain', price: 0))).id, isNotNull);
+    });
+
+    test('update refuses the same invalid data; the row is unchanged',
+        () async {
+      final d = await repo.createDish(dish('Tajine', price: 20));
+      await expectLater(repo.updateDish(d.copyWith(name: ' ')),
+          throwsA(isA<ValidationException>()));
+      await expectLater(repo.updateDish(d.copyWith(price: -1)),
+          throwsA(isA<ValidationException>()));
+      final row = (await repo.getDishById(d.id!))!;
+      expect(row.name, 'Tajine');
+      expect(row.price, 20);
+    });
+
+    test('the message is French (shown as-is by the screens)', () async {
+      await expectLater(
+          repo.createDish(dish(' ')),
+          throwsA(predicate(
+              (e) => '$e' == 'Le nom du plat est obligatoire.')));
+    });
   });
 }
