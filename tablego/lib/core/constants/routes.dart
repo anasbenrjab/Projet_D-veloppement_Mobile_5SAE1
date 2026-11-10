@@ -32,6 +32,12 @@ class Routes {
   static const String ajoutPromotion       = '/ajoutPromotion';
   static const String codePromo            = '/codePromo';
 
+  // Module 4 — gaspillage alimentaire: « Anti-gaspi » tab of both shells,
+  // plus its forms (route names kept from Module 4, pushNamed + arguments).
+  static const String ajoutIngredient      = '/ajoutIngredient';
+  static const String ajoutPerte           = '/ajoutPerte';
+  static const String ajoutOffre           = '/ajoutOffre';
+
   /// Landing route for an authenticated user: restaurant accounts go to
   /// their restaurant space (dishes, orders, profile…), everyone else to the
   /// client home.

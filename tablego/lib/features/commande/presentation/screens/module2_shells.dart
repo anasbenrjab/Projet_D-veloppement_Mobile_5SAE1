@@ -25,6 +25,7 @@ import '../../../menu/presentation/screens/menu_screen.dart';
 import '../../../menu/providers/dish_provider.dart';
 import '../../../events/screens/module3_entrees.dart';
 import '../../../avis_promotions/screens/module5_entrees.dart';
+import '../../../gaspillage/screens/module4_entrees.dart';
 import '../../../profile/presentation/screens/restaurant_profile_screen.dart';
 import '../../../../shared/widgets/tablego_bottom_nav.dart';
 import '../../data/models/order_model.dart';
@@ -131,6 +132,11 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             restaurantId: widget.args.restaurantId,
             restaurantNom: widget.args.name,
           ),
+          // Module 4: anti-waste offers of this restaurant.
+          AntiGaspiClientTab(
+            restaurantId: widget.args.restaurantId,
+            restaurantNom: widget.args.name,
+          ),
         ],
       );
 
@@ -164,6 +170,11 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             Icons.star_border,
             'Avis',
             activeIcon: Icons.star,
+          ),
+          const TableGoNavItem(
+            Icons.eco_outlined,
+            'Anti-gaspi',
+            activeIcon: Icons.eco,
           ),
         ],
       );
@@ -267,6 +278,8 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
           ReservationsRestaurantTab(),
           // Module 5: reviews (replies, spam) + promotions.
           AvisRestaurantTab(),
+          // Module 4: stock, waste log, anti-waste offers, AI.
+          AntiGaspiRestaurantTab(),
           RestaurantProfileScreen(),
         ],
       ),
@@ -313,6 +326,11 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
             Icons.star_border,
             'Avis',
             activeIcon: Icons.star,
+          ),
+          const TableGoNavItem(
+            Icons.eco_outlined,
+            'Anti-gaspi',
+            activeIcon: Icons.eco,
           ),
           const TableGoNavItem(
             Icons.storefront_outlined,

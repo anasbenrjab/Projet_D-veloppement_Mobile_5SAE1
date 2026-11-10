@@ -23,6 +23,9 @@ import 'features/menu/presentation/screens/restaurants_screen.dart';
 import 'features/avis_promotions/screens/ajout_avis_page.dart';
 import 'features/avis_promotions/screens/ajout_promotion_page.dart';
 import 'features/avis_promotions/screens/code_promo_page.dart';
+import 'features/gaspillage/screens/ajout_ingredient_page.dart';
+import 'features/gaspillage/screens/ajout_perte_page.dart';
+import 'features/gaspillage/screens/ajout_offre_page.dart';
 
 void main() {
   final bootWatch = Stopwatch()..start();
@@ -88,6 +91,10 @@ class TableGoApp extends StatelessWidget {
         Routes.ajoutAvis:             (_) => const AjoutAvisPage(),
         Routes.ajoutPromotion:        (_) => const AjoutPromotionPage(),
         Routes.codePromo:             (_) => const CodePromoPage(),
+        // Module 4 — gaspillage alimentaire
+        Routes.ajoutIngredient:       (_) => const AjoutIngredientPage(),
+        Routes.ajoutPerte:            (_) => const AjoutPertePage(),
+        Routes.ajoutOffre:            (_) => const AjoutOffrePage(),
       },
     );
   }

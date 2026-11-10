@@ -7,9 +7,11 @@ import 'package:sqflite/sqflite.dart';
 import 'seeds/avis_promotions_seed.dart';
 import 'seeds/dev_seed.dart';
 import 'seeds/events_seed.dart';
+import 'seeds/gaspillage_seed.dart';
 import 'seeds/menu_seed.dart';
 import 'tables/avis_promotions_tables.dart';
 import 'tables/events_tables.dart';
+import 'tables/gaspillage_tables.dart';
 import 'tables/menu_tables.dart';
 import 'tables/shared_tables.dart';
 import 'tables/user_module_tables.dart';
@@ -43,7 +45,9 @@ class DatabaseHelper {
   //   v5 — Module 3 (événements + réservations): evenement, reservation,
   //        restaurant_profiles.seat_capacity
   //   v6 — Module 5 (avis + promotions): avis, promotions
-  static const int _dbVersion = 6;
+  //   v7 — Module 4 (gaspillage alimentaire): ingredients, pertes, offres,
+  //        reservations_offres, ventes
+  static const int _dbVersion = 7;
 
   /// Current schema version, exposed for tests and tooling.
   static int get schemaVersion => _dbVersion;
@@ -244,6 +248,9 @@ class DatabaseHelper {
 
     // Module 5 (avis + promotions): avis, promotions.
     await AvisPromotionsTables.create(db);
+    // Module 4 (gaspillage): ingredients, pertes, offres,
+    // reservations_offres, ventes.
+    await GaspillageTables.create(db);
 
     // Seed test data in debug builds only — no-op in release.
     await DevSeed.run(db);
@@ -251,6 +258,8 @@ class DatabaseHelper {
     await EventsSeed.applyEventsDemo(db);
     // Module 5 demo (same restaurant and demo clients).
     await AvisPromotionsSeed.applyAvisDemo(db);
+    // Module 4 demo (same restaurant).
+    await GaspillageSeed.applyGaspillageDemo(db);
 
     if (kDebugMode) {
       debugPrint('[DB] onCreate: end (version $version, '
@@ -269,6 +278,7 @@ class DatabaseHelper {
     await MenuSeed.applyMenuDemo(db);
     await EventsSeed.applyEventsDemo(db);
     await AvisPromotionsSeed.applyAvisDemo(db);
+    await GaspillageSeed.applyGaspillageDemo(db);
     await DevSeed.applySeedPhotos(db);
   }
 
@@ -308,6 +318,11 @@ class DatabaseHelper {
     if (oldVersion < 6) {
       // v6: Module 5 tables (avis, promotions).
       await AvisPromotionsTables.create(db);
+    }
+    if (oldVersion < 7) {
+      // v7: Module 4 tables (ingredients, pertes, offres anti-gaspi,
+      // reservations_offres, ventes).
+      await GaspillageTables.create(db);
     }
   }
 

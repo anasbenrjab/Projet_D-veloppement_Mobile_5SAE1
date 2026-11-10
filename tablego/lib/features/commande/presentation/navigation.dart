@@ -11,6 +11,9 @@ class ClientTab {
 
   /// Module 5: reviews + promotions of this restaurant.
   static const avis = 5;
+
+  /// Module 4: anti-waste offers of this restaurant + my reservations.
+  static const antiGaspi = 6;
 }
 
 /// Restaurant shell tabs.
@@ -22,7 +25,10 @@ class RestaurantTab {
 
   /// Module 5: reviews (replies, spam) + promotions.
   static const avis = 4;
-  static const profile = 5;
+
+  /// Module 4: stock, waste log, anti-waste offers, AI.
+  static const antiGaspi = 5;
+  static const profile = 6;
 }
 
 final clientTabProvider = StateProvider<int>((ref) => ClientTab.home);
