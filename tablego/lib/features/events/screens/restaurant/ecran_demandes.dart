@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/reservation.dart';
 import '../../utils/aide_dates.dart';
 import '../../widgets/badge_no_show.dart';
@@ -12,7 +12,11 @@ import '../../widgets/pastille_statut.dart';
 /// Le restaurant peut ACCEPTER ou REFUSER, et clôturer une réservation
 /// passée en la marquant "honorée" ou "no-show" (ce qui nourrit l'IA).
 class EcranDemandes extends StatefulWidget {
-  const EcranDemandes({super.key});
+  const EcranDemandes({super.key, required this.restaurantId});
+
+  /// `restaurant_profiles.id` du restaurant connecté (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
 
   @override
   State<EcranDemandes> createState() => _EcranDemandesState();
@@ -26,7 +30,7 @@ class _Demande {
 }
 
 class _EcranDemandesState extends State<EcranDemandes> {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  final EvenementsRepository _db = EvenementsRepository.instance;
 
   bool _afficherToutes = false;
   List<_Demande> _demandes = [];
@@ -46,6 +50,7 @@ class _EcranDemandesState extends State<EcranDemandes> {
     });
     try {
       final lignes = await _db.reservationsAvecClient(
+        restaurantId: widget.restaurantId,
         statut: _afficherToutes ? null : Reservation.statutEnAttente,
       );
       if (!mounted) return;
@@ -146,7 +151,7 @@ class _EcranDemandesState extends State<EcranDemandes> {
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _demandes.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) => _carteDemande(_demandes[index]),
       ),
     );

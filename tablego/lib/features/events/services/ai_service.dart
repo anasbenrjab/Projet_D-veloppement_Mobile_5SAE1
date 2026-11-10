@@ -1,4 +1,4 @@
-import '../database/database_helper.dart';
+import '../database/evenements_repository.dart';
 import '../models/resultats_ia.dart';
 import '../utils/aide_dates.dart';
 
@@ -11,7 +11,13 @@ import '../utils/aide_dates.dart';
 ///   2. [calculerScoreNoShow]      -> noter le risque qu'un client ne vienne pas ;
 ///   3. [proposerCreneauxAlternatifs] -> suggérer d'autres heures si c'est complet.
 class AiService {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  /// Integration: the AI works for one restaurant (`restaurant_profiles.id`)
+  /// — Module 3 used its single restaurant (id 1).
+  AiService(this.restaurantId, {EvenementsRepository? db})
+      : _db = db ?? EvenementsRepository.instance;
+
+  final int restaurantId;
+  final EvenementsRepository _db;
 
   // ---------------------------------------------------------------------------
   // 1) PRÉDICTION DES HEURES D'AFFLUENCE
@@ -24,10 +30,10 @@ class AiService {
   /// Un créneau est marqué "chargé" quand la moyenne dépasse 80 % de la
   /// capacité maximale du restaurant (ex. 80 % de 40 = 32 personnes).
   Future<List<CreneauAffluence>> predireAffluence() async {
-    final restaurant = await _db.restaurantPrincipal();
+    final restaurant = await _db.restaurant(restaurantId);
     final seuilChargement = restaurant.capaciteMax * 0.8;
 
-    final lignes = await _db.affluenceParCreneau();
+    final lignes = await _db.affluenceParCreneau(restaurantId);
     final resultats = <CreneauAffluence>[];
     for (final ligne in lignes) {
       // strftime('%w') renvoie du texte : "0" (dimanche) à "6" (samedi).
@@ -105,8 +111,8 @@ class AiService {
     required String heure,
     required int nbPersonnes,
   }) async {
-    final restaurant = await _db.restaurantPrincipal();
-    final dejaPrises = await _db.sommePersonnesAcceptees(date, heure);
+    final restaurant = await _db.restaurant(restaurantId);
+    final dejaPrises = await _db.sommePersonnesAcceptees(restaurantId, date, heure);
     return dejaPrises + nbPersonnes > restaurant.capaciteMax;
   }
 
@@ -120,7 +126,7 @@ class AiService {
     required String heure,
     required int nbPersonnes,
   }) async {
-    final restaurant = await _db.restaurantPrincipal();
+    final restaurant = await _db.restaurant(restaurantId);
 
     // Affluence prédite par créneau récurrent : sert à départager les
     // égalités en évitant les heures déjà réputées chargées.
@@ -135,7 +141,7 @@ class AiService {
       final candidate = AideDates.decalerHeure(heure, ecart);
       if (candidate == null) continue; // hors service (12h - 22h)
 
-      final prises = await _db.sommePersonnesAcceptees(date, candidate);
+      final prises = await _db.sommePersonnesAcceptees(restaurantId, date, candidate);
       final restantes = restaurant.capaciteMax - prises;
       if (restantes < nbPersonnes) continue; // pas assez de places
 

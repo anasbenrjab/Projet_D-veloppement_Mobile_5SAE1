@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/reservation.dart';
 import '../../models/resultats_ia.dart';
 import '../../services/ai_service.dart';
@@ -17,6 +17,10 @@ import '../../widgets/feuille_creneaux_alternatifs.dart';
 class EcranFormulaireReservation extends StatefulWidget {
   final int clientId;
 
+  /// `restaurant_profiles.id` du restaurant réservé (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
+
   /// Non null : on modifie une réservation existante.
   final Reservation? reservationExistante;
 
@@ -26,6 +30,7 @@ class EcranFormulaireReservation extends StatefulWidget {
   const EcranFormulaireReservation({
     super.key,
     required this.clientId,
+    required this.restaurantId,
     this.reservationExistante,
     this.onEnregistre,
   });
@@ -38,7 +43,7 @@ class EcranFormulaireReservation extends StatefulWidget {
 class _EcranFormulaireReservationState
     extends State<EcranFormulaireReservation> {
   final _cleFormulaire = GlobalKey<FormState>();
-  final AiService _ia = AiService();
+  late final AiService _ia = AiService(widget.restaurantId);
 
   late DateTime _date;
   late String _heure;
@@ -139,7 +144,7 @@ class _EcranFormulaireReservationState
       final reservation = Reservation(
         id: existante?.id,
         clientId: widget.clientId,
-        restaurantId: 1,
+        restaurantId: widget.restaurantId,
         date: dateTexte,
         heure: heureFinale,
         nbPersonnes: _nbPersonnes,
@@ -150,9 +155,9 @@ class _EcranFormulaireReservationState
       );
 
       if (_modeModification) {
-        await DatabaseHelper.instance.modifierReservation(reservation);
+        await EvenementsRepository.instance.modifierReservation(reservation);
       } else {
-        await DatabaseHelper.instance.insererReservation(reservation);
+        await EvenementsRepository.instance.insererReservation(reservation);
       }
       await widget.onEnregistre?.call();
 
@@ -210,7 +215,7 @@ class _EcranFormulaireReservationState
 
             // ---- Heure -------------------------------------------------
             DropdownButtonFormField<String>(
-              value: _heure,
+              initialValue: _heure,
               decoration: const InputDecoration(
                 labelText: 'Heure',
                 prefixIcon: Icon(Icons.schedule),
@@ -227,7 +232,7 @@ class _EcranFormulaireReservationState
 
             // ---- Nombre de personnes ------------------------------------
             DropdownButtonFormField<int>(
-              value: _nbPersonnes,
+              initialValue: _nbPersonnes,
               decoration: const InputDecoration(
                 labelText: 'Nombre de personnes',
                 prefixIcon: Icon(Icons.groups),

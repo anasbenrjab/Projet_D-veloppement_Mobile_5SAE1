@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import 'ecran_affluence.dart';
 import 'ecran_demandes.dart';
 import 'ecran_evenements.dart';
@@ -10,7 +10,11 @@ import 'ecran_evenements.dart';
 ///   - Affluence IA : créneaux chargés prédits par l'IA locale ;
 ///   - Événements : CRUD complet des événements du restaurant.
 class EcranAccueilRestaurant extends StatefulWidget {
-  const EcranAccueilRestaurant({super.key});
+  const EcranAccueilRestaurant({super.key, required this.restaurantId});
+
+  /// `restaurant_profiles.id` du restaurant connecté (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
 
   @override
   State<EcranAccueilRestaurant> createState() => _EcranAccueilRestaurantState();
@@ -28,7 +32,8 @@ class _EcranAccueilRestaurantState extends State<EcranAccueilRestaurant> {
 
   Future<void> _chargerInfos() async {
     try {
-      final restaurant = await DatabaseHelper.instance.restaurantPrincipal();
+      final restaurant = await EvenementsRepository.instance
+          .restaurant(widget.restaurantId);
       if (!mounted) return;
       setState(() {
         _nomRestaurant = restaurant.nom;
@@ -63,11 +68,11 @@ class _EcranAccueilRestaurantState extends State<EcranAccueilRestaurant> {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            EcranDemandes(),
-            EcranAffluence(),
-            EcranEvenements(),
+            EcranDemandes(restaurantId: widget.restaurantId),
+            EcranAffluence(restaurantId: widget.restaurantId),
+            EcranEvenements(restaurantId: widget.restaurantId),
           ],
         ),
       ),

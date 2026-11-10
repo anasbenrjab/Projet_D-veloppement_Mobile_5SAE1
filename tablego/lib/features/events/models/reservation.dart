@@ -24,6 +24,10 @@ class Reservation {
   final double scoreNoShow; // score de risque calculé par l'IA locale (0 à 1)
   final String createdAt; // moment de création de la demande (ISO 8601)
 
+  /// Nom du restaurant (lecture seule, rempli par la jointure de
+  /// `reservationsDuClient` ; jamais écrit en base).
+  final String? nomRestaurant;
+
   const Reservation({
     this.id,
     required this.clientId,
@@ -35,6 +39,7 @@ class Reservation {
     this.nbModifications = 0,
     this.scoreNoShow = 0.0,
     required this.createdAt,
+    this.nomRestaurant,
   });
 
   /// Convertit l'objet en carte pour l'insertion SQL (requêtes paramétrées).
@@ -63,6 +68,7 @@ class Reservation {
         nbModifications: (map['nb_modifications'] as int?) ?? 0,
         scoreNoShow: ((map['score_no_show'] as num?) ?? 0).toDouble(),
         createdAt: (map['created_at'] as String?) ?? '',
+        nomRestaurant: map['nom_restaurant'] as String?,
       );
 
   /// Une réservation est modifiable/annulable tant qu'elle est en attente ou

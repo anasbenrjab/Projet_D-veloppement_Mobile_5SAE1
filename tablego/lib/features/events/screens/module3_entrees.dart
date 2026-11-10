@@ -1,57 +1,150 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+/// TableGo — Module 3 : Événements & Réservations.
+///
+/// Integration: Module 3's standalone `main.dart` (role choice → fake client
+/// picker or the single restaurant) is replaced by TableGo's login.  These
+/// widgets are the module's entry points in the TableGo navigation; they read
+/// the logged-in user (`authProvider`) and pass the ids to Module 3's screens,
+/// which are unchanged StatefulWidgets:
+///
+/// * [ReservationsRestaurantTab] — restaurant account: Demandes, Affluence IA,
+///   Événements (`EcranAccueilRestaurant`) for its own restaurant;
+/// * [ReserverTableTab] — client, inside a restaurant's page: upcoming events
+///   (read-only) + its reservations at that restaurant + « Réserver »;
+/// * [MesReservationsScreen] — client « Activité »: all its reservations.
+library;
+
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'database/database_helper.dart';
-import 'screens/ecran_choix_role.dart';
+import '../../../core/data/current_restaurant.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../database/evenements_repository.dart';
+import '../models/evenement.dart';
+import '../utils/aide_dates.dart';
+import '../widgets/etat_vide.dart';
+import 'client/ecran_mes_reservations.dart';
+import 'restaurant/ecran_accueil_restaurant.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+/// Restaurant side: Module 3's home for the logged-in restaurant.
+class ReservationsRestaurantTab extends ConsumerWidget {
+  const ReservationsRestaurantTab({super.key});
 
-  // Deux façons d'accéder à SQLite selon la plateforme :
-  //   - sur Android, sqflite utilise SQLite natif : rien à faire ;
-  //   - dans un navigateur, il n'existe pas de SQLite natif : on bascule
-  //     sur la fabrique WebAssembly de sqflite_common_ffi_web.
-  // Le reste de l'application (DatabaseHelper, IA, écrans) est identique.
-  if (kIsWeb) {
-    databaseFactory = databaseFactoryFfiWeb;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(currentRestaurantIdProvider).when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => EtatVide(
+            icone: Icons.error_outline,
+            titre: 'Une erreur est survenue',
+            message: '$e',
+          ),
+          data: (restaurantId) => restaurantId == null
+              ? const EtatVide(
+                  icone: Icons.storefront_outlined,
+                  titre: 'Aucun restaurant',
+                  message: 'Ce compte n\'a pas de profil restaurant.',
+                )
+              : EcranAccueilRestaurant(restaurantId: restaurantId),
+        );
   }
-
-  try {
-    // Ouvre la base dès le démarrage : au premier lancement, cela crée les
-    // tables et insère les 250 réservations fictives + les 3 événements.
-    await DatabaseHelper.instance.database;
-  } catch (e) {
-    // Si la base échoue ici, l'écran d'accueil s'ouvre quand même : chaque
-    // écran réessaie et affiche les erreurs proprement à l'utilisateur.
-  }
-
-  runApp(const RestoEventsApp());
 }
 
-/// Application principale : thème Material 3 en français, écran de choix
-/// du rôle (restaurant ou client) comme point d'entrée.
-class RestoEventsApp extends StatelessWidget {
-  const RestoEventsApp({super.key});
+/// Client side, for one restaurant: its upcoming events and the client's
+/// table reservations there, with the « Réserver » button.
+class ReserverTableTab extends ConsumerWidget {
+  const ReserverTableTab({super.key, required this.restaurantId});
+
+  /// `restaurant_profiles.id`.
+  final int restaurantId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clientId = ref.watch(authProvider.select((s) => s.user?.id));
+    if (clientId == null) return const SizedBox.shrink();
+    return Column(
+      children: [
+        EvenementsAVenir(restaurantId: restaurantId),
+        Expanded(
+          child: EcranMesReservations(
+              clientId: clientId, restaurantId: restaurantId),
+        ),
+      ],
+    );
+  }
+}
+
+/// Client « Activité »: all the client's reservations, every restaurant.
+class MesReservationsScreen extends ConsumerWidget {
+  const MesReservationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clientId = ref.watch(authProvider.select((s) => s.user?.id));
+    if (clientId == null) return const SizedBox.shrink();
+    return EcranMesReservations(clientId: clientId);
+  }
+}
+
+/// Read-only strip of the restaurant's upcoming events (client side).
+class EvenementsAVenir extends StatelessWidget {
+  const EvenementsAVenir({super.key, required this.restaurantId});
+
+  final int restaurantId;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Resto Events',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-        useMaterial3: true,
-      ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('fr'), Locale('en')],
-      home: const EcranChoixRole(),
+    return FutureBuilder<List<Evenement>>(
+      future: EvenementsRepository.instance
+          .evenements(restaurantId, aVenirSeulement: true),
+      builder: (context, snap) {
+        final evenements = snap.data ?? const <Evenement>[];
+        if (evenements.isEmpty) return const SizedBox.shrink();
+        return SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 112,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+              itemCount: evenements.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final e = evenements[i];
+                return SizedBox(
+                  width: 230,
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(e.titre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${Evenement.libellesTypes[e.type] ?? e.type} · '
+                            '${AideDates.formaterDateLongue(e.date)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const Spacer(),
+                          Text('${e.placesRestantes} places restantes',
+                              style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:resto_events/models/meteo.dart';
-import 'package:resto_events/models/resultats_ia.dart';
-import 'package:resto_events/services/ai_service.dart';
-import 'package:resto_events/utils/aide_dates.dart';
+import 'package:tablego/features/events/models/meteo.dart';
+import 'package:tablego/features/events/models/resultats_ia.dart';
+import 'package:tablego/features/events/services/ai_service.dart';
+import 'package:tablego/features/events/utils/aide_dates.dart';
 
 /// Tests unitaires des fonctions pures du module (sans base de données) :
 /// la formule de score de no-show et les utilitaires de dates/heures.

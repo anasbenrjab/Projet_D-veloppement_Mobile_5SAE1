@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/evenement.dart';
 import '../../utils/aide_dates.dart';
 
@@ -9,8 +9,13 @@ class EcranFormulaireEvenement extends StatefulWidget {
   final Evenement? evenementExistant;
   final Future<void> Function()? onEnregistre;
 
+  /// `restaurant_profiles.id` du restaurant connecté (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
+
   const EcranFormulaireEvenement({
     super.key,
+    required this.restaurantId,
     this.evenementExistant,
     this.onEnregistre,
   });
@@ -84,7 +89,7 @@ class _EcranFormulaireEvenementState extends State<EcranFormulaireEvenement> {
 
       final evenement = Evenement(
         id: existant?.id,
-        restaurantId: 1,
+        restaurantId: widget.restaurantId,
         titre: _controleurTitre.text.trim(),
         type: _type,
         date: AideDates.versTexte(_date),
@@ -93,7 +98,7 @@ class _EcranFormulaireEvenementState extends State<EcranFormulaireEvenement> {
         placesRestantes: placesRestantes,
       );
 
-      final db = DatabaseHelper.instance;
+      final db = EvenementsRepository.instance;
       if (_modeModification) {
         await db.modifierEvenement(evenement);
       } else {
@@ -145,7 +150,7 @@ class _EcranFormulaireEvenementState extends State<EcranFormulaireEvenement> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _type,
+              initialValue: _type,
               decoration: const InputDecoration(
                 labelText: 'Type d\'événement',
                 prefixIcon: Icon(Icons.category),

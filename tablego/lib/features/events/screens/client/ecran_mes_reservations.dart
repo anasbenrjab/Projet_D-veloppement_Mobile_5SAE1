@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/reservation.dart';
 import '../../utils/aide_dates.dart';
 import '../../widgets/etat_vide.dart';
@@ -13,14 +13,20 @@ import 'ecran_formulaire_reservation.dart';
 class EcranMesReservations extends StatefulWidget {
   final int clientId;
 
-  const EcranMesReservations({super.key, required this.clientId});
+  const EcranMesReservations(
+      {super.key, required this.clientId, this.restaurantId});
+
+  /// Intégration TableGo : non null = réservations chez ce restaurant
+  /// (`restaurant_profiles.id`) avec le bouton « Réserver » ; null = toutes
+  /// les réservations du client (onglet Activité), sans création.
+  final int? restaurantId;
 
   @override
   State<EcranMesReservations> createState() => _EcranMesReservationsState();
 }
 
 class _EcranMesReservationsState extends State<EcranMesReservations> {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  final EvenementsRepository _db = EvenementsRepository.instance;
 
   List<Reservation> _reservations = [];
   bool _chargement = true;
@@ -38,7 +44,8 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
       _erreur = null;
     });
     try {
-      final liste = await _db.reservationsDuClient(widget.clientId);
+      final liste = await _db.reservationsDuClient(widget.clientId,
+          restaurantId: widget.restaurantId);
       // Tri "intelligent" : les réservations à venir d'abord (les plus
       // proches en premier), puis l'historique (le plus récent d'abord).
       final aujourdhui = AideDates.dateDuJour();
@@ -111,7 +118,9 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: widget.restaurantId == null
+          ? null
+          : FloatingActionButton.extended(
         heroTag: 'nouvelle_reservation',
         icon: const Icon(Icons.add),
         label: const Text('Réserver'),
@@ -121,6 +130,7 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
             MaterialPageRoute(
               builder: (_) => EcranFormulaireReservation(
                 clientId: widget.clientId,
+                restaurantId: widget.restaurantId!,
                 onEnregistre: _charger,
               ),
             ),
@@ -143,10 +153,13 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
       );
     }
     if (_reservations.isEmpty) {
-      return const EtatVide(
+      return EtatVide(
         icone: Icons.event_busy,
         titre: 'Aucune réservation',
-        message: 'Appuyez sur « Réserver » pour créer votre première demande.',
+        message: widget.restaurantId != null
+            ? 'Appuyez sur « Réserver » pour créer votre première demande.'
+            : "Choisissez un restaurant (Explorer) puis l'onglet "
+                '« Réserver » pour créer votre première demande.',
       );
     }
     return RefreshIndicator(
@@ -154,7 +167,7 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
         itemCount: _reservations.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final r = _reservations[index];
           final modifiable = r.estModifiable;
@@ -175,6 +188,7 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
+                      '${r.nomRestaurant != null && widget.restaurantId == null ? '${r.nomRestaurant} · ' : ''}'
                       '${r.nbPersonnes} personne(s)'
                       '${r.nbModifications > 0 ? ' · modifiée ${r.nbModifications} fois' : ''}',
                     ),
@@ -192,6 +206,7 @@ class _EcranMesReservationsState extends State<EcranMesReservations> {
                             MaterialPageRoute(
                               builder: (_) => EcranFormulaireReservation(
                                 clientId: widget.clientId,
+                                restaurantId: r.restaurantId,
                                 reservationExistante: r,
                                 onEnregistre: _charger,
                               ),

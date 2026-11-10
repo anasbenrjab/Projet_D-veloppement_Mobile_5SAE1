@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/evenement.dart';
 import '../../utils/aide_dates.dart';
 import '../../widgets/etat_vide.dart';
@@ -9,7 +9,11 @@ import 'ecran_formulaire_evenement.dart';
 /// Onglet "Événements" du restaurant : CRUD complet (créer, lister,
 /// modifier, supprimer) avec la jauge des places restantes.
 class EcranEvenements extends StatefulWidget {
-  const EcranEvenements({super.key});
+  const EcranEvenements({super.key, required this.restaurantId});
+
+  /// `restaurant_profiles.id` du restaurant connecté (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
 
   @override
   State<EcranEvenements> createState() => _EcranEvenementsState();
@@ -17,7 +21,7 @@ class EcranEvenements extends StatefulWidget {
 
 class _EcranEvenementsState extends State<EcranEvenements>
     with AutomaticKeepAliveClientMixin {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  final EvenementsRepository _db = EvenementsRepository.instance;
 
   List<Evenement> _evenements = [];
   bool _chargement = true;
@@ -38,7 +42,7 @@ class _EcranEvenementsState extends State<EcranEvenements>
       _erreur = null;
     });
     try {
-      final liste = await _db.evenements();
+      final liste = await _db.evenements(widget.restaurantId);
       if (!mounted) return;
       setState(() => _evenements = liste);
     } catch (e) {
@@ -109,7 +113,8 @@ class _EcranEvenementsState extends State<EcranEvenements>
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => EcranFormulaireEvenement(onEnregistre: _charger),
+              builder: (_) => EcranFormulaireEvenement(
+                  restaurantId: widget.restaurantId, onEnregistre: _charger),
             ),
           );
         },
@@ -141,7 +146,7 @@ class _EcranEvenementsState extends State<EcranEvenements>
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
         itemCount: _evenements.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final e = _evenements[index];
           final progression = e.placesTotal > 0
@@ -154,6 +159,7 @@ class _EcranEvenementsState extends State<EcranEvenements>
                 context,
                 MaterialPageRoute(
                   builder: (_) => EcranFormulaireEvenement(
+                    restaurantId: widget.restaurantId,
                     evenementExistant: e,
                     onEnregistre: _charger,
                   ),
@@ -222,6 +228,7 @@ class _EcranEvenementsState extends State<EcranEvenements>
                             context,
                             MaterialPageRoute(
                               builder: (_) => EcranFormulaireEvenement(
+                                restaurantId: widget.restaurantId,
                                 evenementExistant: e,
                                 onEnregistre: _charger,
                               ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../database/database_helper.dart';
+import '../../database/evenements_repository.dart';
 import '../../models/resultats_ia.dart';
 import '../../services/ai_service.dart';
 import '../../widgets/carte_meteo.dart';
@@ -12,7 +12,11 @@ import '../../widgets/etat_vide.dart';
 /// Un créneau est signalé "très chargé" quand la moyenne de personnes
 /// dépasse 80 % de la capacité maximale du restaurant.
 class EcranAffluence extends StatefulWidget {
-  const EcranAffluence({super.key});
+  const EcranAffluence({super.key, required this.restaurantId});
+
+  /// `restaurant_profiles.id` du restaurant connecté (intégration TableGo :
+  /// le Module 3 utilisait son unique restaurant, id 1).
+  final int restaurantId;
 
   @override
   State<EcranAffluence> createState() => _EcranAffluenceState();
@@ -20,7 +24,7 @@ class EcranAffluence extends StatefulWidget {
 
 class _EcranAffluenceState extends State<EcranAffluence>
     with AutomaticKeepAliveClientMixin {
-  final AiService _ia = AiService();
+  late final AiService _ia = AiService(widget.restaurantId);
   late Future<(List<CreneauAffluence>, int)> _predictions;
 
   @override
@@ -34,7 +38,8 @@ class _EcranAffluenceState extends State<EcranAffluence>
 
   Future<(List<CreneauAffluence>, int)> _charger() async {
     final resultats = await _ia.predireAffluence();
-    final restaurant = await DatabaseHelper.instance.restaurantPrincipal();
+    final restaurant = await EvenementsRepository.instance
+        .restaurant(widget.restaurantId);
     return (resultats, restaurant.capaciteMax);
   }
 
