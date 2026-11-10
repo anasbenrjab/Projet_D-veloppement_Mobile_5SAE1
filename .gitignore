@@ -1,0 +1,9 @@
+# Fichiers personnels (cours, cahier des charges, figma, revision)
+*.pptx
+*.pdf
+PREPARATION_QA.md
+.vscode/
+
+# Reglages Android Studio
+.idea/
+*.iml
