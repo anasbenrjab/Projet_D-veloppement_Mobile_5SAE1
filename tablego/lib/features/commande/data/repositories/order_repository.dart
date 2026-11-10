@@ -1,51 +1,80 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../../../core/data/current_restaurant.dart' as current;
 import '../../../../core/database/database_helper.dart';
 import '../models/order_model.dart';
 import '../models/cart_item_model.dart';
+import 'cart_repository.dart';
 
+/// Orders are the single source of truth for what clients ordered: the
+/// recommender reads them through the `order_history` view
+/// (see `MenuTables.replaceOrderHistoryWithView`).
 class OrderRepository {
-  OrderRepository(this._db);
+  OrderRepository([DatabaseHelper? db]) : _db = db ?? DatabaseHelper.instance;
   final DatabaseHelper _db;
+
+  Future<Database> get _database => _db.database;
+
+  /// `restaurant_profiles.id` of the logged-in restaurant user [userId].
+  Future<int?> restaurantIdForUser(int userId) async =>
+      current.restaurantIdForUser(await _database, userId);
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
+  /// Places the order of client [userId] at [restaurantId]: inserts the
+  /// order and its lines, then empties that restaurant's cart — all in one
+  /// transaction, so a failure leaves neither a half order nor a lost cart.
   Future<OrderModel> placeOrder({
+    required int userId,
+    required int restaurantId,
     required List<CartItemModel> cartItems,
     required String orderType,
     String note = '',
     String clientName = 'Client',
-    int restaurantId = 1,
   }) async {
+    if (cartItems.isEmpty) {
+      throw StateError('Le panier est vide.');
+    }
     final total = cartItems.fold<double>(0, (s, i) => s + i.subtotal);
     final now = DateTime.now();
+    final items = <OrderItemModel>[];
 
-    // Insert the order
-    final orderId = await _db.insert('orders', {
-      'order_type': orderType,
-      'status': OrderStatus.received,
-      'total_price': total,
-      'note': note,
-      'client_name': clientName,
-      'restaurant_id': restaurantId,
-      'created_at': now.toIso8601String(),
-    });
-
-    // Insert order items
-    for (final item in cartItems) {
-      await _db.insert('order_items', {
-        'order_id': orderId,
-        'dish_id': item.dishId,
-        'dish_name': item.dish?.name ?? 'Plat supprimé',
-        'dish_price': item.dish?.price ?? 0.0,
-        'quantity': item.quantity,
+    final orderId = await (await _database).transaction((txn) async {
+      final orderId = await txn.insert('orders', {
+        'user_id': userId,
+        'order_type': orderType,
+        'status': OrderStatus.received,
+        'total_price': total,
+        'note': note,
+        'client_name': clientName,
+        'restaurant_id': restaurantId,
+        'created_at': now.toUtc().toIso8601String(),
       });
-    }
 
-    // Clear the cart
-    await _db.delete('cart_items', where: '1', whereArgs: []);
+      for (final item in cartItems) {
+        final line = OrderItemModel(
+          orderId: orderId,
+          dishId: item.dishId,
+          dishName: item.dish?.name ?? 'Plat supprimé',
+          dishPrice: item.dish?.price ?? 0.0,
+          quantity: item.quantity,
+        );
+        await txn.insert('order_items', line.toMap());
+        items.add(line);
+      }
+
+      await CartRepository.clearCartIn(
+        txn,
+        userId: userId,
+        restaurantId: restaurantId,
+      );
+      return orderId;
+    });
 
     return OrderModel(
       id: orderId,
+      userId: userId,
       orderType: orderType,
       status: OrderStatus.received,
       totalPrice: total,
@@ -53,55 +82,66 @@ class OrderRepository {
       clientName: clientName,
       restaurantId: restaurantId,
       createdAt: now,
-      items: cartItems
-          .map((ci) => OrderItemModel(
-                orderId: orderId,
-                dishId: ci.dishId,
-                dishName: ci.dish?.name ?? 'Plat supprimé',
-                dishPrice: ci.dish?.price ?? 0.0,
-                quantity: ci.quantity,
-              ))
-          .toList(),
+      items: items,
     );
   }
 
   // ── Read ───────────────────────────────────────────────────────────────────
 
-  Future<List<OrderModel>> getAllOrders({int restaurantId = 1}) async {
-    final rows = await _db.query(
+  /// Orders received by restaurant [restaurantId] (restaurant side).
+  Future<List<OrderModel>> getAllOrders({required int restaurantId}) async {
+    final rows = await (await _database).query(
       'orders',
       where: 'restaurant_id = ?',
       whereArgs: [restaurantId],
-      orderBy: 'created_at DESC',
+      orderBy: 'created_at DESC, id DESC',
     );
     return _attachItems(rows);
   }
 
-  Future<List<OrderModel>> getOrdersByStatus(String status,
-      {int restaurantId = 1}) async {
-    final rows = await _db.query(
+  /// Orders placed by client [userId], all restaurants (client side).
+  Future<List<OrderModel>> getClientOrders({required int userId}) async {
+    final rows = await (await _database).query(
+      'orders',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC, id DESC',
+    );
+    return _attachItems(rows);
+  }
+
+  Future<List<OrderModel>> getOrdersByStatus(
+    String status, {
+    required int restaurantId,
+  }) async {
+    final rows = await (await _database).query(
       'orders',
       where: 'restaurant_id = ? AND status = ?',
       whereArgs: [restaurantId, status],
-      orderBy: 'created_at DESC',
+      orderBy: 'created_at DESC, id DESC',
     );
     return _attachItems(rows);
   }
 
   Future<OrderModel?> getOrderById(int id) async {
-    final rows =
-        await _db.query('orders', where: 'id = ?', whereArgs: [id]);
+    final rows = await (await _database).query(
+      'orders',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     if (rows.isEmpty) return null;
     final orders = await _attachItems(rows);
     return orders.first;
   }
 
   Future<List<OrderModel>> _attachItems(
-      List<Map<String, dynamic>> orderRows) async {
+    List<Map<String, dynamic>> orderRows,
+  ) async {
+    final db = await _database;
     final result = <OrderModel>[];
     for (final row in orderRows) {
       final orderId = row['id'] as int;
-      final itemRows = await _db.query(
+      final itemRows = await db.query(
         'order_items',
         where: 'order_id = ?',
         whereArgs: [orderId],
@@ -115,7 +155,7 @@ class OrderRepository {
   // ── Update ─────────────────────────────────────────────────────────────────
 
   Future<void> updateStatus(int orderId, String newStatus) async {
-    await _db.update(
+    await (await _database).update(
       'orders',
       {'status': newStatus},
       where: 'id = ?',
@@ -132,5 +172,5 @@ class OrderRepository {
 }
 
 final orderRepositoryProvider = Provider<OrderRepository>(
-  (ref) => OrderRepository(DatabaseHelper.instance),
+  (ref) => OrderRepository(),
 );

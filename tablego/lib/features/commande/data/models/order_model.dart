@@ -42,7 +42,8 @@ class OrderItemModel {
   factory OrderItemModel.fromMap(Map<String, dynamic> map) => OrderItemModel(
         id: map['id'] as int?,
         orderId: map['order_id'] as int,
-        dishId: map['dish_id'] as int,
+        // NULL once the dish was deleted; the name/price snapshot remains.
+        dishId: map['dish_id'] as int? ?? 0,
         dishName: map['dish_name'] as String,
         dishPrice: (map['dish_price'] as num).toDouble(),
         quantity: map['quantity'] as int,
@@ -68,6 +69,9 @@ class OrderModel {
   final String note;
   final String clientName;
   final int restaurantId;
+
+  /// Client who placed the order (`users.id`).
+  final int userId;
   final DateTime createdAt;
 
   // Joined
@@ -80,7 +84,8 @@ class OrderModel {
     required this.totalPrice,
     this.note = '',
     this.clientName = 'Client',
-    this.restaurantId = 1,
+    this.restaurantId = 0,
+    this.userId = 0,
     required this.createdAt,
     this.items = const [],
   });
@@ -94,8 +99,9 @@ class OrderModel {
         totalPrice: (map['total_price'] as num).toDouble(),
         note: map['note'] as String? ?? '',
         clientName: map['client_name'] as String? ?? 'Client',
-        restaurantId: map['restaurant_id'] as int? ?? 1,
-        createdAt: DateTime.parse(map['created_at'] as String),
+        restaurantId: map['restaurant_id'] as int,
+        userId: map['user_id'] as int,
+        createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
         items: items,
       );
 
@@ -107,7 +113,8 @@ class OrderModel {
         'note': note,
         'client_name': clientName,
         'restaurant_id': restaurantId,
-        'created_at': createdAt.toIso8601String(),
+        'user_id': userId,
+        'created_at': createdAt.toUtc().toIso8601String(),
       };
 
   OrderModel copyWith({
@@ -118,6 +125,7 @@ class OrderModel {
     String? note,
     String? clientName,
     int? restaurantId,
+    int? userId,
     DateTime? createdAt,
     List<OrderItemModel>? items,
   }) =>
@@ -129,6 +137,7 @@ class OrderModel {
         note: note ?? this.note,
         clientName: clientName ?? this.clientName,
         restaurantId: restaurantId ?? this.restaurantId,
+        userId: userId ?? this.userId,
         createdAt: createdAt ?? this.createdAt,
         items: items ?? this.items,
       );

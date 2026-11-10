@@ -1,41 +1,38 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqflite/sqflite.dart';
+
 import '../../../../core/database/database_helper.dart';
 import '../../../menu/data/models/dish_model.dart';
 import '../models/cart_item_model.dart';
 
+/// Cart of the logged-in client ([userId] = `users.id`), seen per restaurant:
+/// each restaurant the client browses has its own cart, so an order always
+/// goes to a single restaurant.
 class CartRepository {
-  CartRepository(this._db);
+  CartRepository([DatabaseHelper? db]) : _db = db ?? DatabaseHelper.instance;
   final DatabaseHelper _db;
 
-  Future<List<CartItemModel>> getCartItems() async {
+  Future<Database> get _database => _db.database;
+
+  Future<List<CartItemModel>> getCartItems({
+    required int userId,
+    required int restaurantId,
+  }) async {
     // JOIN cart_items with dishes to get full dish data
-    final rows = await _db.rawQuery(
-      '''SELECT ci.id, ci.dish_id, ci.quantity, ci.added_at,
-                d.name, d.description, d.price, d.category,
-                d.image_path, d.is_available, d.allergens,
-                d.restaurant_id, d.created_at as dish_created_at
+    final rows = await (await _database).rawQuery(
+      '''SELECT ci.id AS cart_id, ci.quantity, ci.added_at, d.*
          FROM cart_items ci
          INNER JOIN dishes d ON ci.dish_id = d.id
-         ORDER BY ci.added_at ASC''',
-      [],
+         WHERE ci.user_id = ? AND d.restaurant_id = ?
+         ORDER BY ci.added_at ASC, ci.id ASC''',
+      [userId, restaurantId],
     );
 
     return rows.map((row) {
-      final dish = DishModel(
-        id: row['dish_id'] as int,
-        name: row['name'] as String,
-        description: row['description'] as String? ?? '',
-        price: (row['price'] as num).toDouble(),
-        category: row['category'] as String,
-        imagePath: row['image_path'] as String?,
-        isAvailable: (row['is_available'] as int) == 1,
-        allergens: row['allergens'] as String? ?? '',
-        restaurantId: row['restaurant_id'] as int? ?? 1,
-        createdAt: DateTime.parse(row['dish_created_at'] as String),
-      );
+      final dish = DishModel.fromMap(row);
       return CartItemModel(
-        id: row['id'] as int,
-        dishId: row['dish_id'] as int,
+        id: row['cart_id'] as int,
+        dishId: dish.id!,
         quantity: row['quantity'] as int,
         addedAt: DateTime.parse(row['added_at'] as String),
         dish: dish,
@@ -43,25 +40,29 @@ class CartRepository {
     }).toList();
   }
 
-  Future<CartItemModel?> getCartItemByDishId(int dishId) async {
-    final rows = await _db.query(
+  Future<CartItemModel?> getCartItemByDishId({
+    required int userId,
+    required int dishId,
+  }) async {
+    final rows = await (await _database).query(
       'cart_items',
-      where: 'dish_id = ?',
-      whereArgs: [dishId],
+      where: 'user_id = ? AND dish_id = ?',
+      whereArgs: [userId, dishId],
     );
     if (rows.isEmpty) return null;
     return CartItemModel.fromMap(rows.first);
   }
 
-  Future<void> addToCart(int dishId) async {
-    final existing = await getCartItemByDishId(dishId);
+  Future<void> addToCart({required int userId, required int dishId}) async {
+    final existing = await getCartItemByDishId(userId: userId, dishId: dishId);
     if (existing != null) {
       await updateQuantity(existing.id!, existing.quantity + 1);
     } else {
-      await _db.insert('cart_items', {
+      await (await _database).insert('cart_items', {
+        'user_id': userId,
         'dish_id': dishId,
         'quantity': 1,
-        'added_at': DateTime.now().toIso8601String(),
+        'added_at': DateTime.now().toUtc().toIso8601String(),
       });
     }
   }
@@ -71,7 +72,7 @@ class CartRepository {
       await removeFromCart(cartItemId);
       return;
     }
-    await _db.update(
+    await (await _database).update(
       'cart_items',
       {'quantity': quantity},
       where: 'id = ?',
@@ -80,21 +81,55 @@ class CartRepository {
   }
 
   Future<void> removeFromCart(int cartItemId) async {
-    await _db.delete('cart_items', where: 'id = ?', whereArgs: [cartItemId]);
+    await (await _database).delete(
+      'cart_items',
+      where: 'id = ?',
+      whereArgs: [cartItemId],
+    );
   }
 
-  Future<void> clearCart() async {
-    await _db.delete('cart_items', where: '1', whereArgs: []);
+  /// Empties the client's cart for [restaurantId] only.
+  Future<void> clearCart({
+    required int userId,
+    required int restaurantId,
+  }) async {
+    await clearCartIn(
+      await _database,
+      userId: userId,
+      restaurantId: restaurantId,
+    );
   }
 
-  Future<int> getCartCount() async {
-    final rows = await _db.rawQuery(
-        'SELECT SUM(quantity) as total FROM cart_items', []);
+  /// [clearCart] on any executor (used inside the checkout transaction).
+  static Future<void> clearCartIn(
+    DatabaseExecutor db, {
+    required int userId,
+    required int restaurantId,
+  }) async {
+    await db.delete(
+      'cart_items',
+      where:
+          'user_id = ? AND dish_id IN '
+          '(SELECT id FROM dishes WHERE restaurant_id = ?)',
+      whereArgs: [userId, restaurantId],
+    );
+  }
+
+  Future<int> getCartCount({
+    required int userId,
+    required int restaurantId,
+  }) async {
+    final rows = await (await _database).rawQuery(
+      '''SELECT SUM(ci.quantity) AS total FROM cart_items ci
+           JOIN dishes d ON d.id = ci.dish_id
+           WHERE ci.user_id = ? AND d.restaurant_id = ?''',
+      [userId, restaurantId],
+    );
     final total = rows.first['total'];
     return total == null ? 0 : (total as num).toInt();
   }
 }
 
 final cartRepositoryProvider = Provider<CartRepository>(
-  (ref) => CartRepository(DatabaseHelper.instance),
+  (ref) => CartRepository(),
 );

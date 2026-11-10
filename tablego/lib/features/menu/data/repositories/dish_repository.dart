@@ -1,15 +1,24 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../../../core/data/current_restaurant.dart' as current;
 import '../../../../core/database/database_helper.dart';
 import '../models/dish_model.dart';
 
 class DishRepository {
-  DishRepository(this._db);
+  DishRepository([DatabaseHelper? db]) : _db = db ?? DatabaseHelper.instance;
   final DatabaseHelper _db;
+
+  Future<Database> get _database => _db.database;
+
+  /// `restaurant_profiles.id` of the logged-in restaurant user [userId].
+  Future<int?> restaurantIdForUser(int userId) async =>
+      current.restaurantIdForUser(await _database, userId);
 
   // ── Read ──────────────────────────────────────────────────────────────────
 
-  Future<List<DishModel>> getAllDishes({int restaurantId = 1}) async {
-    final rows = await _db.query(
+  Future<List<DishModel>> getAllDishes({required int restaurantId}) async {
+    final rows = await (await _database).query(
       'dishes',
       where: 'restaurant_id = ?',
       whereArgs: [restaurantId],
@@ -18,8 +27,10 @@ class DishRepository {
     return rows.map(DishModel.fromMap).toList();
   }
 
-  Future<List<DishModel>> getAvailableDishes({int restaurantId = 1}) async {
-    final rows = await _db.query(
+  Future<List<DishModel>> getAvailableDishes({
+    required int restaurantId,
+  }) async {
+    final rows = await (await _database).query(
       'dishes',
       where: 'restaurant_id = ? AND is_available = 1',
       whereArgs: [restaurantId],
@@ -28,9 +39,11 @@ class DishRepository {
     return rows.map(DishModel.fromMap).toList();
   }
 
-  Future<List<DishModel>> getDishesByCategory(String category,
-      {int restaurantId = 1}) async {
-    final rows = await _db.query(
+  Future<List<DishModel>> getDishesByCategory(
+    String category, {
+    required int restaurantId,
+  }) async {
+    final rows = await (await _database).query(
       'dishes',
       where: 'restaurant_id = ? AND category = ? AND is_available = 1',
       whereArgs: [restaurantId, category],
@@ -40,19 +53,26 @@ class DishRepository {
   }
 
   Future<DishModel?> getDishById(int id) async {
-    final rows = await _db.query('dishes', where: 'id = ?', whereArgs: [id]);
+    final rows = await (await _database).query(
+      'dishes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     if (rows.isEmpty) return null;
     return DishModel.fromMap(rows.first);
   }
 
-  Future<List<DishModel>> searchDishes(String query,
-      {int restaurantId = 1}) async {
+  Future<List<DishModel>> searchDishes(
+    String query, {
+    required int restaurantId,
+  }) async {
     final pattern = '%${query.toLowerCase()}%';
-    final rows = await _db.rawQuery(
+    final rows = await (await _database).rawQuery(
       '''SELECT * FROM dishes
          WHERE restaurant_id = ?
            AND is_available = 1
-           AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?)
+           AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?
+                OR LOWER(category) LIKE ?)
          ORDER BY name ASC''',
       [restaurantId, pattern, pattern, pattern],
     );
@@ -62,14 +82,15 @@ class DishRepository {
   // ── Write ─────────────────────────────────────────────────────────────────
 
   Future<DishModel> createDish(DishModel dish) async {
-    final id = await _db.insert('dishes', dish.toMap());
+    final id = await (await _database).insert('dishes', dish.toMap());
     return dish.copyWith(id: id);
   }
 
   Future<DishModel> updateDish(DishModel dish) async {
-    await _db.update(
+    final map = dish.toMap()..remove('created_at');
+    await (await _database).update(
       'dishes',
-      dish.toMap(),
+      map,
       where: 'id = ?',
       whereArgs: [dish.id],
     );
@@ -77,7 +98,7 @@ class DishRepository {
   }
 
   Future<void> toggleAvailability(int id, bool isAvailable) async {
-    await _db.update(
+    await (await _database).update(
       'dishes',
       {'is_available': isAvailable ? 1 : 0},
       where: 'id = ?',
@@ -85,11 +106,13 @@ class DishRepository {
     );
   }
 
+  /// Deletes the dish.  Past orders keep their name/price snapshot
+  /// (`order_items.dish_id` becomes NULL); cart lines and favorites go.
   Future<void> deleteDish(int id) async {
-    await _db.delete('dishes', where: 'id = ?', whereArgs: [id]);
+    await (await _database).delete('dishes', where: 'id = ?', whereArgs: [id]);
   }
 }
 
 final dishRepositoryProvider = Provider<DishRepository>(
-  (ref) => DishRepository(DatabaseHelper.instance),
+  (ref) => DishRepository(),
 );

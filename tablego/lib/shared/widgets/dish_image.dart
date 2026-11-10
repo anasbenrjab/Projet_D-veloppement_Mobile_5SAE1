@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/photo_ref.dart';
 
 /// Decoded bytes per data URI, so lists don't re-decode on every rebuild.
 final Map<String, Uint8List> _decodeCache = {};
@@ -72,14 +73,23 @@ class DishImage extends StatelessWidget {
       return Image.memory(bytes,
           fit: fit,
           gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => placeholder);
+          errorBuilder: (_, _, _) => placeholder);
     }
 
-    if (!u.startsWith('http')) return placeholder;
+    // Bundled asset (dev seed) or mobile file path: TableGo's photo refs.
+    if (!u.startsWith('http')) {
+      final provider = photoImageProvider(u);
+      if (provider == null) return placeholder;
+      return Image(
+          image: provider,
+          fit: fit,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => placeholder);
+    }
     return Image.network(
       u,
       fit: fit,
-      errorBuilder: (_, __, ___) => placeholder,
+      errorBuilder: (_, _, _) => placeholder,
       loadingBuilder: (_, child, p) =>
           p == null ? child : Container(color: AppColors.peach),
     );

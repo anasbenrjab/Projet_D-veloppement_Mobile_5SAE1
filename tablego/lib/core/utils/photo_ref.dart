@@ -10,6 +10,7 @@ import 'photo_files.dart';
 ///   Resolved with [AssetImage] on every platform.
 /// * **Mobile upload** — an absolute file path
 ///   (`.../profile_photos/<uuid>.jpg`), resolved through `dart:io`.
+/// * **Network URL** — `https://...`, e.g. Module 2 dishes (TheMealDB).
 /// * **Web upload** — a `data:<mime>;base64,<bytes>` URI, because the browser
 ///   has no file system and the bytes live in the `profile_photos` table.
 ///
@@ -37,6 +38,10 @@ bool isAssetPhoto(String ref) => ref.startsWith(_assetPrefix);
 ImageProvider? photoImageProvider(String? ref) {
   if (ref == null || ref.isEmpty) return null;
   if (isAssetPhoto(ref)) return AssetImage(ref);
+  // Network photo (Module 2 dishes: TheMealDB / Unsplash URLs).
+  if (ref.startsWith('http://') || ref.startsWith('https://')) {
+    return NetworkImage(ref);
+  }
   if (!isDataUriPhoto(ref)) return fileImageProvider(ref);
 
   final comma = ref.indexOf(',');

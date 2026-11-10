@@ -2,6 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/order_model.dart';
 import '../data/repositories/order_repository.dart';
 import '../data/models/cart_item_model.dart';
+import '../../../core/data/user_data_changes.dart';
+import '../../auth/data/models/user_model.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../menu/providers/dish_provider.dart';
 
 class OrderState {
   final List<OrderModel> orders;
@@ -34,16 +38,39 @@ class OrderState {
 }
 
 class OrderNotifier extends StateNotifier<OrderState> {
-  OrderNotifier(this._repo) : super(const OrderState()) {
+  OrderNotifier(this._repo,
+      {this._user, this._selectedRestaurantId, this._onOrderPlaced})
+      : super(const OrderState()) {
     loadOrders();
   }
 
   final OrderRepository _repo;
 
-  Future<void> loadOrders({int restaurantId = 1}) async {
+  /// Logged-in user (from authProvider): a client sees the orders they
+  /// placed, a restaurant the orders it received.
+  final UserModel? _user;
+
+  /// Restaurant the client is ordering from (selectedRestaurantProvider).
+  final int? _selectedRestaurantId;
+
+  /// Bumps userDataChangesProvider so recommendations take new orders in.
+  final void Function()? _onOrderPlaced;
+
+  Future<List<OrderModel>> _fetchOrders() async {
+    final user = _user;
+    if (user == null) return const [];
+    if (user.userType == 'restaurant') {
+      final restaurantId = await _repo.restaurantIdForUser(user.id);
+      if (restaurantId == null) return const [];
+      return _repo.getAllOrders(restaurantId: restaurantId);
+    }
+    return _repo.getClientOrders(userId: user.id);
+  }
+
+  Future<void> loadOrders() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final orders = await _repo.getAllOrders(restaurantId: restaurantId);
+      final orders = await _fetchOrders();
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {
       state =
@@ -59,12 +86,20 @@ class OrderNotifier extends StateNotifier<OrderState> {
   }) async {
     state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
     try {
+      final user = _user;
+      final restaurantId = _selectedRestaurantId;
+      if (user == null || restaurantId == null) {
+        throw StateError('Connectez-vous et choisissez un restaurant.');
+      }
       final order = await _repo.placeOrder(
+        userId: user.id,
+        restaurantId: restaurantId,
         cartItems: cartItems,
         orderType: orderType,
         note: note,
         clientName: clientName,
       );
+      _onOrderPlaced?.call();
       await loadOrders();
       state = state.copyWith(
         isLoading: false,
@@ -107,5 +142,11 @@ class OrderNotifier extends StateNotifier<OrderState> {
 }
 
 final orderProvider = StateNotifierProvider<OrderNotifier, OrderState>(
-  (ref) => OrderNotifier(ref.watch(orderRepositoryProvider)),
+  (ref) => OrderNotifier(
+    ref.watch(orderRepositoryProvider),
+    user: ref.watch(authProvider.select((s) => s.user)),
+    selectedRestaurantId: ref.watch(selectedRestaurantProvider),
+    onOrderPlaced: () =>
+        ref.read(userDataChangesProvider.notifier).changed(),
+  ),
 );

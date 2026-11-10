@@ -11,6 +11,12 @@ class AppColors {
   static const Color textDark = Color(0xFF2B2118);
   static const Color error = Color(0xFFE03131);
 
+  // Supporting tones (from Module 2 — menu + commande)
+  static const Color peach = Color(0xFFFDEBDD); // tinted orange bg
+  static const Color textMuted = Color(0xFF7A6B5F); // secondary brown-grey
+  static const Color border = Color(0xFFEFE3D6);
+  static const Color ecoLight = Color(0xFFE6F4E9);
+
   // Dark Theme
   static const Color darkSurface = Color(0xFF241C17);
   static const Color darkElevated = Color(0xFF30231F);

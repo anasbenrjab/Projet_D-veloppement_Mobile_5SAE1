@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/cart_item_model.dart';
 import '../data/repositories/cart_repository.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../menu/providers/dish_provider.dart';
 
 class CartState {
   final List<CartItemModel> items;
@@ -41,16 +43,26 @@ class CartState {
 }
 
 class CartNotifier extends StateNotifier<CartState> {
-  CartNotifier(this._repo) : super(const CartState()) {
+  CartNotifier(this._repo, {required this._userId, required this._restaurantId})
+      : super(const CartState()) {
     loadCart();
   }
 
   final CartRepository _repo;
 
+  /// Logged-in client (`users.id`) and the restaurant being browsed: the
+  /// cart shown is that client's cart for that restaurant.
+  final int? _userId;
+  final int? _restaurantId;
+  bool get _ready => _userId != null && _restaurantId != null;
+
   Future<void> loadCart() async {
     state = state.copyWith(isLoading: true);
     try {
-      final items = await _repo.getCartItems();
+      final items = _ready
+          ? await _repo.getCartItems(
+              userId: _userId!, restaurantId: _restaurantId!)
+          : const <CartItemModel>[];
       state = state.copyWith(isLoading: false, items: items);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: '$e');
@@ -59,7 +71,9 @@ class CartNotifier extends StateNotifier<CartState> {
 
   Future<void> addToCart(int dishId) async {
     try {
-      await _repo.addToCart(dishId);
+      final userId = _userId;
+      if (userId == null) return;
+      await _repo.addToCart(userId: userId, dishId: dishId);
       await loadCart();
     } catch (e) {
       state = state.copyWith(error: '$e');
@@ -86,7 +100,9 @@ class CartNotifier extends StateNotifier<CartState> {
 
   Future<void> clearCart() async {
     try {
-      await _repo.clearCart();
+      if (_ready) {
+        await _repo.clearCart(userId: _userId!, restaurantId: _restaurantId!);
+      }
       state = state.copyWith(items: []);
     } catch (e) {
       state = state.copyWith(error: '$e');
@@ -97,5 +113,9 @@ class CartNotifier extends StateNotifier<CartState> {
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>(
-  (ref) => CartNotifier(ref.watch(cartRepositoryProvider)),
+  (ref) => CartNotifier(
+    ref.watch(cartRepositoryProvider),
+    userId: ref.watch(authProvider.select((s) => s.user?.id)),
+    restaurantId: ref.watch(selectedRestaurantProvider),
+  ),
 );
