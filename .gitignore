@@ -4,3 +4,7 @@
 PREPARATION_QA.md
 .claude/
 .vscode/
+
+# Reglages Android Studio
+.idea/
+*.iml
