@@ -24,6 +24,7 @@ import '../../../menu/presentation/screens/manage_dishes_screen.dart';
 import '../../../menu/presentation/screens/menu_screen.dart';
 import '../../../menu/providers/dish_provider.dart';
 import '../../../events/screens/module3_entrees.dart';
+import '../../../avis_promotions/screens/module5_entrees.dart';
 import '../../../profile/presentation/screens/restaurant_profile_screen.dart';
 import '../../../../shared/widgets/tablego_bottom_nav.dart';
 import '../../data/models/order_model.dart';
@@ -125,6 +126,11 @@ class _ClientShellState extends ConsumerState<ClientShell> {
           ),
           // Module 3: events + table reservations at this restaurant.
           ReserverTableTab(restaurantId: widget.args.restaurantId),
+          // Module 5: reviews + promotions of this restaurant.
+          AvisClientTab(
+            restaurantId: widget.args.restaurantId,
+            restaurantNom: widget.args.name,
+          ),
         ],
       );
 
@@ -153,6 +159,11 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             Icons.event_seat_outlined,
             'Réserver',
             activeIcon: Icons.event_seat,
+          ),
+          const TableGoNavItem(
+            Icons.star_border,
+            'Avis',
+            activeIcon: Icons.star,
           ),
         ],
       );
@@ -254,6 +265,8 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
           ),
           // Module 3: requests, AI affluence, events.
           ReservationsRestaurantTab(),
+          // Module 5: reviews (replies, spam) + promotions.
+          AvisRestaurantTab(),
           RestaurantProfileScreen(),
         ],
       ),
@@ -295,6 +308,11 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
             Icons.event_note_outlined,
             'Réservations',
             activeIcon: Icons.event_note,
+          ),
+          const TableGoNavItem(
+            Icons.star_border,
+            'Avis',
+            activeIcon: Icons.star,
           ),
           const TableGoNavItem(
             Icons.storefront_outlined,

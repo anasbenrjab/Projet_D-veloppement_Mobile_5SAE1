@@ -8,6 +8,9 @@ class ClientTab {
 
   /// Module 3: table reservations + upcoming events of this restaurant.
   static const reserve = 4;
+
+  /// Module 5: reviews + promotions of this restaurant.
+  static const avis = 5;
 }
 
 /// Restaurant shell tabs.
@@ -16,7 +19,10 @@ class RestaurantTab {
 
   /// Module 3: requests, AI affluence, events.
   static const reservations = 3;
-  static const profile = 4;
+
+  /// Module 5: reviews (replies, spam) + promotions.
+  static const avis = 4;
+  static const profile = 5;
 }
 
 final clientTabProvider = StateProvider<int>((ref) => ClientTab.home);

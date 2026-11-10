@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'seeds/avis_promotions_seed.dart';
 import 'seeds/dev_seed.dart';
 import 'seeds/events_seed.dart';
 import 'seeds/menu_seed.dart';
+import 'tables/avis_promotions_tables.dart';
 import 'tables/events_tables.dart';
 import 'tables/menu_tables.dart';
 import 'tables/shared_tables.dart';
@@ -40,7 +42,8 @@ class DatabaseHelper {
   //        order_items; order_history becomes a VIEW over orders/order_items
   //   v5 — Module 3 (événements + réservations): evenement, reservation,
   //        restaurant_profiles.seat_capacity
-  static const int _dbVersion = 5;
+  //   v6 — Module 5 (avis + promotions): avis, promotions
+  static const int _dbVersion = 6;
 
   /// Current schema version, exposed for tests and tooling.
   static int get schemaVersion => _dbVersion;
@@ -239,10 +242,15 @@ class DatabaseHelper {
           '(${sw.elapsedMilliseconds}ms)');
     }
 
+    // Module 5 (avis + promotions): avis, promotions.
+    await AvisPromotionsTables.create(db);
+
     // Seed test data in debug builds only — no-op in release.
     await DevSeed.run(db);
     // Module 3 demo (needs the seeded restaurant and demo clients).
     await EventsSeed.applyEventsDemo(db);
+    // Module 5 demo (same restaurant and demo clients).
+    await AvisPromotionsSeed.applyAvisDemo(db);
 
     if (kDebugMode) {
       debugPrint('[DB] onCreate: end (version $version, '
@@ -260,6 +268,7 @@ class DatabaseHelper {
     await DevSeed.applyRecommendationDemo(db);
     await MenuSeed.applyMenuDemo(db);
     await EventsSeed.applyEventsDemo(db);
+    await AvisPromotionsSeed.applyAvisDemo(db);
     await DevSeed.applySeedPhotos(db);
   }
 
@@ -295,6 +304,10 @@ class DatabaseHelper {
     if (oldVersion < 5) {
       // v5: Module 3 tables (events, table reservations, seat capacity).
       await EventsTables.create(db);
+    }
+    if (oldVersion < 6) {
+      // v6: Module 5 tables (avis, promotions).
+      await AvisPromotionsTables.create(db);
     }
   }
 

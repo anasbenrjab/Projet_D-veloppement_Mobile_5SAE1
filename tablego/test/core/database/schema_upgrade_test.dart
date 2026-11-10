@@ -34,8 +34,8 @@ Future<Set<String>> _dishColumns(Database db) async =>
 void main() {
   setUpAll(sqfliteFfiInit);
 
-  test('schema version is 5', () {
-    expect(DatabaseHelper.schemaVersion, 5);
+  test('schema version is 6', () {
+    expect(DatabaseHelper.schemaVersion, 6);
   });
 
   test('a v2 database upgrades: dishes.allergens added, rows kept',

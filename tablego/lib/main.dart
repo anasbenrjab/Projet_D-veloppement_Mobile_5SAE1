@@ -20,6 +20,9 @@ import 'features/favorites/presentation/screens/favorites_screen.dart';
 import 'features/commande/presentation/screens/module2_shells.dart';
 import 'features/activity/presentation/activity_screen.dart';
 import 'features/menu/presentation/screens/restaurants_screen.dart';
+import 'features/avis_promotions/screens/ajout_avis_page.dart';
+import 'features/avis_promotions/screens/ajout_promotion_page.dart';
+import 'features/avis_promotions/screens/code_promo_page.dart';
 
 void main() {
   final bootWatch = Stopwatch()..start();
@@ -81,6 +84,10 @@ class TableGoApp extends StatelessWidget {
         Routes.restaurants:           (_) => const RestaurantsScreen(),
         Routes.restaurantHome:        (_) => const RestaurantShell(),
         Routes.activity:              (_) => const ActivityScreen(),
+        // Module 5 — avis + promotions
+        Routes.ajoutAvis:             (_) => const AjoutAvisPage(),
+        Routes.ajoutPromotion:        (_) => const AjoutPromotionPage(),
+        Routes.codePromo:             (_) => const CodePromoPage(),
       },
     );
   }

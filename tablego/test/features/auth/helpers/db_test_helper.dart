@@ -1,5 +1,6 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:tablego/core/database/database_helper.dart';
+import 'package:tablego/core/database/tables/avis_promotions_tables.dart';
 import 'package:tablego/core/database/tables/events_tables.dart';
 import 'package:tablego/core/database/tables/menu_tables.dart';
 import 'package:tablego/core/database/tables/shared_tables.dart';
@@ -33,6 +34,7 @@ Future<DatabaseHelper> buildTestDb() async {
         await SharedTables.create(db);
         await MenuTables.create(db);
         await EventsTables.create(db);
+        await AvisPromotionsTables.create(db);
       },
     ),
   );

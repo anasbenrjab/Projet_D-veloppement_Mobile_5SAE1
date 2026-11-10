@@ -26,6 +26,12 @@ class Routes {
   // Module 3 — événements + réservations: tabs of the shells above and of
   // the client activity screen (no routes of their own).
 
+  // Module 5 — avis + promotions: « Avis » tab of both shells, plus its forms
+  // (route names kept from Module 5, used with pushNamed + arguments).
+  static const String ajoutAvis            = '/ajoutAvis';
+  static const String ajoutPromotion       = '/ajoutPromotion';
+  static const String codePromo            = '/codePromo';
+
   /// Landing route for an authenticated user: restaurant accounts go to
   /// their restaurant space (dishes, orders, profile…), everyone else to the
   /// client home.
