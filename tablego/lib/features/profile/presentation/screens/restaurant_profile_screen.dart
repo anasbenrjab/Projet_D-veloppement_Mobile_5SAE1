@@ -187,8 +187,9 @@ class _RestaurantProfileScreenState
                     onTap: () async {
                       await ref.read(authProvider.notifier).logout();
                       if (context.mounted) {
+                        // Clear the whole stack (the restaurant shell too).
                         Navigator.of(context)
-                            .pushReplacementNamed(Routes.login);
+                            .pushNamedAndRemoveUntil(Routes.login, (_) => false);
                       }
                     },
                   ),

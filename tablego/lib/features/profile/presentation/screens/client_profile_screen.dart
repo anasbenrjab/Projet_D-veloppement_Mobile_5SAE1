@@ -284,7 +284,10 @@ class _MenuList extends ConsumerWidget {
                   if (item.$2 == 'Se déconnecter') {
                     await ref.read(authProvider.notifier).logout();
                     if (context.mounted) {
-                      Navigator.of(context).pushReplacementNamed(Routes.login);
+                      // Clear the whole stack: nothing of this session must
+                      // stay under the next login.
+                      Navigator.of(context)
+                          .pushNamedAndRemoveUntil(Routes.login, (_) => false);
                     }
                   } else if (item.$3 != null) {
                     Navigator.of(context).pushNamed(item.$3!);
