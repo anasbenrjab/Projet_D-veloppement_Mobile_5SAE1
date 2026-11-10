@@ -45,6 +45,38 @@ class _EditRestaurantProfileScreenState
     _descCtrl.text    = profile.description ?? '';
   }
 
+  Future<void> _deletePhoto(String photoRef) async {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer cette photo ?'),
+        content: const Text('Elle ne sera plus affichée aux clients.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer',
+                  style: TextStyle(color: AppColors.error))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(profileProvider.notifier).deletePhoto(
+        userId: userId, userType: 'restaurant', photoRef: photoRef);
+    if (mounted) {
+      final err = ref.read(profileProvider).error;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err)));
+        ref.read(profileProvider.notifier).clearError();
+      }
+    }
+  }
+
   Future<void> _addPhoto() async {
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return;
@@ -129,10 +161,33 @@ class _EditRestaurantProfileScreenState
                     scrollDirection: Axis.horizontal,
                     itemCount: photoPaths.length,
                     separatorBuilder: (_, s) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) => ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: PhotoImage.restaurant(photoPaths[i],
-                          width: 80, height: 80),
+                    itemBuilder: (_, i) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: PhotoImage.restaurant(photoPaths[i],
+                              width: 80, height: 80),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Material(
+                            color: Colors.black54,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              key: Key('delete_restaurant_photo_$i'),
+                              customBorder: const CircleBorder(),
+                              onTap: () => _deletePhoto(photoPaths[i]),
+                              child: const Padding(
+                                padding: EdgeInsets.all(3),
+                                child: Icon(Icons.close,
+                                    size: 16, color: Colors.white,
+                                    semanticLabel: 'Supprimer la photo'),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

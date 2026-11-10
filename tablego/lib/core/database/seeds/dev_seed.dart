@@ -587,6 +587,9 @@ class DevSeed {
 
   /// Sets the bundled seed photos on seed rows that have no photo yet.
   ///
+  /// Only `NULL` means "never set": a photo removed by the user is stored as
+  /// `''` (client) or `'[]'` (restaurant) and is not put back.
+  ///
   /// Called at the end of [run] for new databases, and by `DatabaseHelper`
   /// on every open so databases seeded before the photos existed get them
   /// too.  Idempotent, and never overwrites a photo a user has set.  Like
@@ -599,7 +602,7 @@ class DevSeed {
     for (final e in _clientPhotos.entries) {
       updated += await db.rawUpdate('''
         UPDATE client_profiles SET photo_path = ?
-         WHERE (photo_path IS NULL OR photo_path = '')
+         WHERE photo_path IS NULL
            AND user_id = (SELECT id FROM users WHERE email = ?)
       ''', [e.value, e.key]);
     }
@@ -607,7 +610,7 @@ class DevSeed {
     for (final e in _restaurantPhotos.entries) {
       updated += await db.rawUpdate('''
         UPDATE restaurant_profiles SET photo_paths = ?
-         WHERE (photo_paths IS NULL OR photo_paths IN ('', '[]'))
+         WHERE photo_paths IS NULL
            AND user_id = (SELECT id FROM users WHERE email = ?)
       ''', [jsonEncode(e.value), e.key]);
     }

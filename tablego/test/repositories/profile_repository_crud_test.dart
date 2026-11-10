@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tablego/core/database/seeds/dev_seed.dart';
 import 'package:tablego/core/services/geocoding_service.dart';
+import 'package:tablego/core/utils/photo_ref.dart';
 import 'package:tablego/features/profile/data/repositories/profile_repository.dart';
 import 'package:tablego/features/profile/domain/profile_exception.dart';
 
@@ -212,6 +214,114 @@ void main() {
       });
       await t.db.delete('users', where: 'id = ?', whereArgs: [id]);
       expect(await t.count('profile_photos'), 0);
+    });
+  });
+
+  group('profile photo delete', () {
+    test('client: removes the file and the reference; no photo → no-op',
+        () async {
+      final id = await t.client('c@test.com');
+      final path = await repo.saveProfilePhoto(
+          userId: id, userType: 'client', bytes: const [1],
+          sourcePath: sourcePhoto('a.jpg').path);
+
+      await repo.deleteClientPhoto(id);
+      expect(File(path).existsSync(), isFalse);
+      expect(photoImageProvider((await repo.getClientProfile(id)).photoPath),
+          isNull); // the UI shows the placeholder
+      await repo.deleteClientPhoto(id); // nothing left: no error
+    });
+
+    test('client: web upload (profile_photos row) is removed', () async {
+      final id = await t.client('c@test.com');
+      await t.db.insert('profile_photos', {
+        'user_id': id, 'user_type': 'client', 'mime_type': 'image/png',
+        'data': Uint8List.fromList([1, 2, 3]),
+      });
+      expect((await repo.getClientProfile(id)).photoPath, startsWith('data:'));
+      await repo.deleteClientPhoto(id);
+      expect(await t.count('profile_photos'), 0);
+    });
+
+    test('client: a removed seed avatar is not put back by the debug seed',
+        () async {
+      final id = await t.client('client@test.com');
+      await DevSeed.applySeedPhotos(t.db); // NULL → seed avatar
+      expect((await repo.getClientProfile(id)).photoPath, startsWith('assets/'));
+
+      await repo.deleteClientPhoto(id);
+      await DevSeed.applySeedPhotos(t.db); // runs on every app start
+      expect(photoImageProvider((await repo.getClientProfile(id)).photoPath),
+          isNull);
+    });
+
+    test('restaurant: removes one stored photo (file deleted), keeps others',
+        () async {
+      final (owner, _) = await t.restaurant('r@test.com', 'R');
+      final a = await repo.saveProfilePhoto(
+          userId: owner, userType: 'restaurant', bytes: const [1],
+          sourcePath: sourcePhoto('a.jpg').path);
+      final b = await repo.saveProfilePhoto(
+          userId: owner, userType: 'restaurant', bytes: const [2],
+          sourcePath: sourcePhoto('b.jpg').path);
+
+      expect(await repo.deleteRestaurantPhoto(userId: owner, photoRef: a),
+          isTrue);
+      expect((await repo.getRestaurantProfile(owner)).photoPaths, [b]);
+      expect(File(a).existsSync(), isFalse);
+      expect(File(b).existsSync(), isTrue);
+    });
+
+    test('restaurant: bundled seed photos are dropped from the list (asset '
+        'kept) and not put back by the debug seed', () async {
+      final (owner, _) = await t.restaurant('resto@test.com', 'Le Gourmet');
+      await DevSeed.applySeedPhotos(t.db);
+      final seeded = (await repo.getRestaurantProfile(owner)).photoPaths;
+      expect(seeded, hasLength(3));
+
+      for (final ref in seeded) {
+        expect(await repo.deleteRestaurantPhoto(userId: owner, photoRef: ref),
+            isTrue);
+      }
+      await DevSeed.applySeedPhotos(t.db);
+      expect((await repo.getRestaurantProfile(owner)).photoPaths, isEmpty);
+    });
+
+    test('restaurant: a web upload is deleted by its data URI', () async {
+      final (owner, _) = await t.restaurant('r@test.com', 'R');
+      for (final (pos, bytes) in [(0, [1, 1]), (1, [2, 2])]) {
+        await t.db.insert('profile_photos', {
+          'user_id': owner, 'user_type': 'restaurant', 'position': pos,
+          'mime_type': 'image/png', 'data': Uint8List.fromList(bytes),
+        });
+      }
+      final refs = (await repo.getRestaurantProfile(owner)).photoPaths;
+      expect(refs, hasLength(2));
+
+      expect(await repo.deleteRestaurantPhoto(userId: owner, photoRef: refs[0]),
+          isTrue);
+      expect((await repo.getRestaurantProfile(owner)).photoPaths, [refs[1]]);
+      expect(await t.count('profile_photos'), 1);
+    });
+
+    test('unknown photo → false, nothing changed; wrong account type → '
+        'ProfileException', () async {
+      final (owner, _) = await t.restaurant('r@test.com', 'R');
+      final a = await repo.saveProfilePhoto(
+          userId: owner, userType: 'restaurant', bytes: const [1],
+          sourcePath: sourcePhoto('a.jpg').path);
+      expect(
+          await repo.deleteRestaurantPhoto(
+              userId: owner, photoRef: '/nope.jpg'),
+          isFalse);
+      expect((await repo.getRestaurantProfile(owner)).photoPaths, [a]);
+
+      final client = await t.client('c@test.com');
+      await expectLater(
+          repo.deleteRestaurantPhoto(userId: client, photoRef: a),
+          throwsA(isA<ProfileException>()));
+      await expectLater(repo.deleteClientPhoto(owner),
+          throwsA(isA<ProfileException>()));
     });
   });
 }

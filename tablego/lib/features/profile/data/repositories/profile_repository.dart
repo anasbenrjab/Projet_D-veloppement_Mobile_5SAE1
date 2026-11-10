@@ -329,6 +329,92 @@ class ProfileRepository {
     return destPath;
   }
 
+  // ── Photo deletion ────────────────────────────────────────────────────────
+
+  /// Removes the client's profile photo (mobile file or web upload).
+  /// No-op when there is none.
+  ///
+  /// The column is set to `''` (removed by the user), not `NULL` (never
+  /// set), so the debug seed does not put its demo avatar back.
+  Future<void> deleteClientPhoto(int userId) async {
+    await _assertUserType(userId, 'client');
+    final db  = await _database;
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    final rows = await db.query('client_profiles',
+        columns: ['photo_path'],
+        where: 'user_id = ?', whereArgs: [userId], limit: 1);
+    final oldPath = rows.isEmpty ? null : rows.first['photo_path'] as String?;
+
+    await db.transaction((txn) async {
+      await txn.delete('profile_photos',
+          where: 'user_id = ? AND user_type = ?',
+          whereArgs: [userId, 'client']);
+      await txn.update('client_profiles', {'photo_path': '', 'updated_at': now},
+          where: 'user_id = ?', whereArgs: [userId]);
+    });
+
+    // Delete the file after the DB write — never a bundled asset.
+    if (oldPath != null && oldPath.isNotEmpty && !isAssetPhoto(oldPath)) {
+      await deleteStoredPhoto(oldPath);
+    }
+  }
+
+  /// Removes one restaurant photo, identified by the reference returned in
+  /// [RestaurantProfileModel.photoPaths] (a stored path / asset, or the
+  /// `data:` URI of a web upload).  Returns false when no such photo exists.
+  Future<bool> deleteRestaurantPhoto({
+    required int    userId,
+    required String photoRef,
+  }) async {
+    await _assertUserType(userId, 'restaurant');
+    final db  = await _database;
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    final rows = await db.query('restaurant_profiles',
+        columns: ['photo_paths'],
+        where: 'user_id = ?', whereArgs: [userId], limit: 1);
+    final paths = RestaurantProfileModel.decodeList(
+        rows.isEmpty ? null : rows.first['photo_paths']);
+
+    var removed = false;
+    var deletedFile = false;
+    if (paths.contains(photoRef)) {
+      paths.remove(photoRef);
+      removed = true;
+      deletedFile = !isAssetPhoto(photoRef) && !isDataUriPhoto(photoRef);
+    } else if (isDataUriPhoto(photoRef)) {
+      // Web upload: find the profile_photos row behind this data URI.
+      final uploads = await db.query('profile_photos',
+          columns: ['id', 'mime_type', 'data'],
+          where: 'user_id = ? AND user_type = ?',
+          whereArgs: [userId, 'restaurant'],
+          orderBy: 'position ASC, id ASC');
+      for (final u in uploads) {
+        final data = u['data'];
+        if (data is! List<int>) continue;
+        final mime = (u['mime_type'] as String?) ?? 'image/jpeg';
+        if (encodePhotoDataUri(mime, data) == photoRef) {
+          await db.delete('profile_photos',
+              where: 'id = ?', whereArgs: [u['id']]);
+          removed = true;
+          break;
+        }
+      }
+    }
+    if (!removed) return false;
+
+    // '[]' (not NULL) = emptied by the restaurant: the debug seed leaves it.
+    await db.update(
+      'restaurant_profiles',
+      {'photo_paths': jsonEncode(paths), 'updated_at': now},
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    if (deletedFile) await deleteStoredPhoto(photoRef);
+    return true;
+  }
+
   // ── Web photo storage ─────────────────────────────────────────────────────
 
   /// Inserts [bytes] into `profile_photos` and returns the resulting data URI.

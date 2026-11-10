@@ -199,6 +199,34 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 
+  /// Deletes a profile photo: the client's photo, or the restaurant photo
+  /// [photoRef] (as listed in its profile).  Returns true on success.
+  Future<bool> deletePhoto({
+    required int    userId,
+    required String userType,
+    String?         photoRef,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      if (userType == 'client') {
+        await _repo.deleteClientPhoto(userId);
+        await loadClientProfile(userId);
+        return true;
+      }
+      final ref = photoRef;
+      final removed = ref != null &&
+          await _repo.deleteRestaurantPhoto(userId: userId, photoRef: ref);
+      await loadRestaurantProfile(userId);
+      if (!removed) {
+        state = state.copyWith(error: 'Photo introuvable');
+      }
+      return removed;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: _parseError(e));
+      return false;
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   void clearError() => state = state.copyWith(clearError: true);

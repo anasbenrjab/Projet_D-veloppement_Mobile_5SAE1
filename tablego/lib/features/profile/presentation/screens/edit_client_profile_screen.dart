@@ -53,6 +53,39 @@ class _EditClientProfileScreenState
     });
   }
 
+  Future<void> _deletePhoto() async {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer la photo ?'),
+        content: const Text('Votre photo de profil sera retirée.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer',
+                  style: TextStyle(color: AppColors.error))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref
+        .read(profileProvider.notifier)
+        .deletePhoto(userId: userId, userType: 'client');
+    if (mounted) {
+      final err = ref.read(profileProvider).error;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err)));
+        ref.read(profileProvider.notifier).clearError();
+      }
+    }
+  }
+
   Future<void> _pickPhoto() async {
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return;
@@ -155,7 +188,18 @@ class _EditClientProfileScreenState
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              if (photoImage != null)
+                Center(
+                  child: TextButton.icon(
+                    key: const Key('delete_client_photo'),
+                    onPressed: _deletePhoto,
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: AppColors.error),
+                    label: const Text('Supprimer la photo',
+                        style: TextStyle(color: AppColors.error)),
+                  ),
+                ),
+              const SizedBox(height: 20),
 
               AppTextField(
                 label: 'Nom complet',
