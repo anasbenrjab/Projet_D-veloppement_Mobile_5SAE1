@@ -2,7 +2,6 @@
 *.pptx
 *.pdf
 PREPARATION_QA.md
-.claude/
 .vscode/
 
 # Reglages Android Studio
