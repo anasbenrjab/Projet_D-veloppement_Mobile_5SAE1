@@ -1,0 +1,8 @@
+# Module 2 (Menu + Commande)
+tablego_module2/build/
+tablego_module2/.dart_tool/
+tablego_module2/.idea/
+tablego_module2/secrets.json
+*.iml
+.vscode/
+Thumbs.db
