@@ -23,6 +23,7 @@ import '../../../menu/presentation/screens/dish_ai_assistant_screen.dart';
 import '../../../menu/presentation/screens/manage_dishes_screen.dart';
 import '../../../menu/presentation/screens/menu_screen.dart';
 import '../../../menu/providers/dish_provider.dart';
+import '../../../events/screens/module3_entrees.dart';
 import '../../../profile/presentation/screens/restaurant_profile_screen.dart';
 import '../../../../shared/widgets/tablego_bottom_nav.dart';
 import '../../data/models/order_model.dart';
@@ -106,6 +107,8 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             subtitle: 'Votre historique et le suivi en direct',
             child: OrderHistoryScreen(standalone: false),
           ),
+          // Module 3: events + table reservations at this restaurant.
+          ReserverTableTab(restaurantId: widget.args.restaurantId),
         ],
       ),
       bottomNavigationBar: TableGoBottomNav(
@@ -129,6 +132,11 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             'Commandes',
             activeIcon: Icons.assignment,
           ),
+          const TableGoNavItem(
+            Icons.event_seat_outlined,
+            'Réserver',
+            activeIcon: Icons.event_seat,
+          ),
         ],
       ),
     );
@@ -138,7 +146,8 @@ class _ClientShellState extends ConsumerState<ClientShell> {
 // ── Restaurant shell ─────────────────────────────────────────────────────────
 
 /// Home of a restaurant account.  One Scaffold, one bottom bar:
-/// Mes plats · Assistant IA · Commandes · Mon restaurant (profile).
+/// Mes plats · Assistant IA · Commandes · Réservations (Module 3) ·
+/// Mon restaurant (profile).
 class RestaurantShell extends ConsumerStatefulWidget {
   const RestaurantShell({super.key});
 
@@ -189,6 +198,8 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
             subtitle: 'Mettez à jour le statut des commandes',
             child: ManageOrdersScreen(standalone: false),
           ),
+          // Module 3: requests, AI affluence, events.
+          ReservationsRestaurantTab(),
           RestaurantProfileScreen(),
         ],
       ),
@@ -225,6 +236,11 @@ class _RestaurantShellState extends ConsumerState<RestaurantShell> {
             'Commandes',
             activeIcon: Icons.receipt_long,
             badge: pending,
+          ),
+          const TableGoNavItem(
+            Icons.event_note_outlined,
+            'Réservations',
+            activeIcon: Icons.event_note,
           ),
           const TableGoNavItem(
             Icons.storefront_outlined,

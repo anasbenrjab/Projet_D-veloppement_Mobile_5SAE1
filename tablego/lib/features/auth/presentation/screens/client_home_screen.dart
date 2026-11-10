@@ -42,7 +42,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       return;
     }
     if (index == 3) {
-      Navigator.of(context).pushNamed(Routes.myOrders);
+      Navigator.of(context).pushNamed(Routes.activity);
       return;
     }
     if (index == 4) {

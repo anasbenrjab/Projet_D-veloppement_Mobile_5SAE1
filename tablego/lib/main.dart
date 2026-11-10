@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/routes.dart';
 import 'core/database/web_database_factory.dart';
@@ -17,7 +18,7 @@ import 'features/profile/presentation/screens/restaurant_profile_screen.dart';
 import 'features/profile/presentation/screens/edit_restaurant_profile_screen.dart';
 import 'features/favorites/presentation/screens/favorites_screen.dart';
 import 'features/commande/presentation/screens/module2_shells.dart';
-import 'features/commande/presentation/screens/order_history_screen.dart';
+import 'features/activity/presentation/activity_screen.dart';
 import 'features/menu/presentation/screens/restaurants_screen.dart';
 
 void main() {
@@ -42,6 +43,13 @@ class TableGoApp extends StatelessWidget {
     return MaterialApp(
       title: 'TableGo',
       debugShowCheckedModeBanner: false,
+      // French Material widgets (date pickers…); English as a fallback.
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('fr'), Locale('en')],
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       // Screens still use fixed light colours (AppColors); dark mode stays off
@@ -72,7 +80,7 @@ class TableGoApp extends StatelessWidget {
         // Module 2 — menu + commande
         Routes.restaurants:           (_) => const RestaurantsScreen(),
         Routes.restaurantHome:        (_) => const RestaurantShell(),
-        Routes.myOrders:              (_) => const OrderHistoryScreen(),
+        Routes.activity:              (_) => const ActivityScreen(),
       },
     );
   }

@@ -5,11 +5,18 @@ import '../../../core/constants/routes.dart';
 /// Client shell tabs.
 class ClientTab {
   static const home = 0, menu = 1, cart = 2, orders = 3;
+
+  /// Module 3: table reservations + upcoming events of this restaurant.
+  static const reserve = 4;
 }
 
 /// Restaurant shell tabs.
 class RestaurantTab {
-  static const dishes = 0, assistant = 1, orders = 2, profile = 3;
+  static const dishes = 0, assistant = 1, orders = 2;
+
+  /// Module 3: requests, AI affluence, events.
+  static const reservations = 3;
+  static const profile = 4;
 }
 
 final clientTabProvider = StateProvider<int>((ref) => ClientTab.home);

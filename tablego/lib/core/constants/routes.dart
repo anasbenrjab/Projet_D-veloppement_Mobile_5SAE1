@@ -21,7 +21,10 @@ class Routes {
   static const String restaurants          = '/restaurants';
   static const String restaurantMenu       = '/restaurant-menu';
   static const String restaurantHome       = '/restaurant';
-  static const String myOrders             = '/my-orders';
+  static const String activity             = '/activity';
+
+  // Module 3 — événements + réservations: tabs of the shells above and of
+  // the client activity screen (no routes of their own).
 
   /// Landing route for an authenticated user: restaurant accounts go to
   /// their restaurant space (dishes, orders, profile…), everyone else to the
