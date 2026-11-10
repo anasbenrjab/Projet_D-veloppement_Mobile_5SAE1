@@ -2,45 +2,85 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../../recommendations/domain/food_labels.dart';
+
 /// AI service for the Dish Assistant feature.
 ///
-/// PRIMARY  → Google Gemini 2.0 Flash API (external web service)
+/// PRIMARY  → Google Gemini API (external web service)
 /// FALLBACK → local keyword heuristics (works offline)
 ///
 /// Valeur Ajoutée: consommation d'un web service externe (Gemini API)
+///
+/// Every call logs the path it took: `[DishAI] path=gemini model=…` or
+/// `[DishAI] path=fallback reason=…` (no key, HTTP error, unusable reply).
 class DishAiService {
-  DishAiService._();
-  static final DishAiService instance = DishAiService._();
+  DishAiService({
+    http.Client? client,
+    String? apiKey,
+    List<String>? models,
+  })  : _client = client ?? http.Client(),
+        _apiKey = apiKey ?? _keyFromEnvironment,
+        _models = models ?? _modelsFromEnvironment;
+
+  static final DishAiService instance = DishAiService();
 
   // ── Gemini config ──────────────────────────────────────────────────────────
   // The key is NOT stored in the code (the repo is public). It is read at
-  // build time from secrets.json (git-ignored):
+  // BUILD time from secrets.json (git-ignored), only when the app is started
+  // with:
   //   flutter run -d chrome --dart-define-from-file=secrets.json
-  // Without a key, the assistant uses the local suggestion fallback.
-  static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-  // AQ. format keys use x-goog-api-key header (new Google Auth key format)
-  // Try models in order: highest quota first
-  // Model names confirmed from API ListModels response
-  static const List<String> _models = [
-    'gemini-3.8-flash',       // latest, recommended by Google
-    'gemini-3.5-flash-lite',  // lite fallback (more quota)
-    'gemini-3.1-flash-lite',  // older stable fallback
-  ];
+  // A plain `flutter run` has no key → the local fallback is used.
+  static const String _keyFromEnvironment =
+      String.fromEnvironment('GEMINI_API_KEY');
+
+  // Models tried in order (first that answers wins).  Override with
+  // "GEMINI_MODEL" in secrets.json to force one model.
+  static const String _modelOverride = String.fromEnvironment('GEMINI_MODEL');
+  static List<String> get _modelsFromEnvironment => _modelOverride.isNotEmpty
+      ? [_modelOverride]
+      : const [
+          'gemini-3.8-flash',
+          'gemini-3.5-flash-lite',
+          'gemini-3.1-flash-lite',
+        ];
+
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/';
 
+  final http.Client _client;
+  final String _apiKey;
+  final List<String> _models;
+
+  /// True when a Gemini key was compiled in (see [_keyFromEnvironment]).
+  bool get hasApiKey => _apiKey.isNotEmpty;
+
+  /// Allergen vocabulary shared with the recommender (canonical names, see
+  /// docs/integration-recommandations.md).
+  static const List<String> allergenIds = [
+    'gluten', 'lactose', 'oeufs', 'poisson', 'crustaces', 'arachides',
+    'fruits a coque', 'soja', 'sesame', 'moutarde', 'celeri',
+  ];
+
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  /// Analyse a dish name and return a suggestion.
-  /// Tries Gemini first; falls back to local heuristics on any failure.
-  Future<DishSuggestion> suggestFromName(String dishName) async {
-    try {
-      final result = await _callGemini(dishName);
-      if (result != null) return result;
-    } catch (e) {
-      debugPrint('[DishAI] Gemini failed: $e — using local fallback');
+  /// Analyse a dish name (and its category when the restaurant chose one)
+  /// and return a suggestion.  Tries Gemini first; falls back to local
+  /// heuristics on any failure.
+  Future<DishSuggestion> suggestFromName(String dishName,
+      {String? category}) async {
+    if (!hasApiKey) {
+      debugPrint('[DishAI] path=fallback reason=no GEMINI_API_KEY '
+          '(run with --dart-define-from-file=secrets.json)');
+      return localSuggestion(dishName, category: category);
     }
-    return _localSuggestion(dishName);
+    try {
+      final result = await _callGemini(dishName, category: category);
+      if (result != null) return result;
+      debugPrint('[DishAI] path=fallback reason=no usable Gemini reply');
+    } catch (e) {
+      debugPrint('[DishAI] path=fallback reason=$e');
+    }
+    return localSuggestion(dishName, category: category);
   }
 
   /// Returns category suggestions for combos.
@@ -57,49 +97,43 @@ class DishAiService {
 
   // ── Gemini call ─────────────────────────────────────────────────────────────
 
-  Future<DishSuggestion?> _callGemini(String dishName) async {
-    if (_apiKey.isEmpty) {
-      debugPrint('[DishAI] No GEMINI_API_KEY (see secrets.json) — local fallback');
-      return null;
-    }
-    final prompt = '''
-Tu es un assistant culinaire expert pour une application de restaurant.
-Analyse le nom du plat suivant et réponds UNIQUEMENT avec un JSON valide (sans markdown, sans explication) :
+  @visibleForTesting
+  static String buildPrompt(String dishName, {String? category}) => '''
+Tu es un assistant culinaire pour la carte d'un restaurant.
+Plat : "$dishName"${category != null ? '\nCatégorie choisie par le restaurant : "$category"' : ''}
 
-Plat : "$dishName"
-
-Format JSON attendu :
+Réponds UNIQUEMENT avec un objet JSON (sans markdown) :
 {
-  "description": "<description appétissante en français, 1-2 phrases>",
-  "category": "<une seule valeur parmi : Entrée, Plat principal, Dessert, Boisson, Snack, Menu enfant, Spécialité>",
-  "allergens": ["<allergène1>", "<allergène2>"]
+  "description": "<1 à 2 phrases en français, spécifiques à CE plat : ses ingrédients typiques et sa préparation ; pas de phrase générique>",
+  "category": "<${category ?? 'une valeur parmi : Entrée, Plat principal, Dessert, Boisson, Snack, Menu enfant, Spécialité'}>",
+  "allergens": [<allergènes probables, uniquement parmi : ${allergenIds.map((a) => '"$a"').join(', ')}>]
 }
-
-Pour les allergènes, utilise uniquement : Gluten, Lait, Œuf, Poisson, Crustacés, Arachides, Fruits à coque, Soja, Céleri, Sésame, Moutarde, Lupin, Mollusques, Sulfites.
-Si aucun allergène probable, mets ["Aucun"].
+Si le plat ne contient probablement aucun de ces allergènes, renvoie "allergens": [].
 ''';
 
+  Future<DishSuggestion?> _callGemini(String dishName,
+      {String? category}) async {
     final body = jsonEncode({
       'contents': [
         {
           'parts': [
-            {'text': prompt}
+            {'text': buildPrompt(dishName, category: category)}
           ]
         }
       ],
       'generationConfig': {
-        'temperature': 0.7,
-        'maxOutputTokens': 300,
+        'temperature': 0.4,
+        'maxOutputTokens': 400,
+        'responseMimeType': 'application/json',
       },
     });
 
     // Try each model until one succeeds
     for (final model in _models) {
-      final url = '$_baseUrl$model:generateContent';
       try {
-        final response = await http
+        final response = await _client
             .post(
-              Uri.parse(url),
+              Uri.parse('$_baseUrl$model:generateContent'),
               headers: {
                 'Content-Type': 'application/json',
                 'x-goog-api-key': _apiKey,
@@ -108,180 +142,267 @@ Si aucun allergène probable, mets ["Aucun"].
             )
             .timeout(const Duration(seconds: 15));
 
-        if (response.statusCode == 200) {
-          debugPrint('[DishAI] Success with model: $model');
-          final decoded =
-              jsonDecode(response.body) as Map<String, dynamic>;
-          final text = decoded['candidates']?[0]?['content']?['parts']
-              ?[0]?['text'] as String?;
-          if (text == null) continue;
-
-          final clean =
-              text.replaceAll(RegExp(r'```json|```'), '').trim();
-          final parsed = jsonDecode(clean) as Map<String, dynamic>;
-
-          final description = parsed['description'] as String? ?? '';
-          final category =
-              parsed['category'] as String? ?? 'Plat principal';
-          final rawAllergens = parsed['allergens'];
-          final allergens = rawAllergens is List
-              ? rawAllergens.map((e) => e.toString()).toList()
-              : <String>['Aucun'];
-
-          return DishSuggestion(
-            description: description,
-            category: category,
-            allergens: allergens,
-            source: SuggestionSource.gemini,
-          );
-        } else if (response.statusCode == 503 ||
-            response.statusCode == 429) {
-          // Overloaded or rate limited — try next model
-          debugPrint(
-              '[DishAI] Model $model returned ${response.statusCode}, trying next...');
-          continue;
-        } else {
-          debugPrint(
-              '[DishAI] Model $model HTTP ${response.statusCode}: ${response.body}');
+        if (response.statusCode != 200) {
+          // 503 overloaded / 429 rate limited / 404 unknown model → next one
+          debugPrint('[DishAI] model=$model HTTP ${response.statusCode}, '
+              'trying next…');
           continue;
         }
+        final suggestion =
+            parseGeminiResponse(response.body, category: category);
+        if (suggestion == null) {
+          debugPrint('[DishAI] model=$model unusable reply, trying next…');
+          continue;
+        }
+        debugPrint('[DishAI] path=gemini model=$model');
+        return suggestion;
       } catch (e) {
-        debugPrint('[DishAI] Model $model error: $e, trying next...');
-        continue;
+        debugPrint('[DishAI] model=$model error: $e, trying next…');
       }
     }
     return null; // all models failed → fallback to local
   }
 
+  /// Parses a Gemini `generateContent` response body.  Returns null when it
+  /// holds no usable suggestion (no text, no JSON object, no description).
+  /// Unknown categories and allergens outside [allergenIds] are dropped.
+  @visibleForTesting
+  static DishSuggestion? parseGeminiResponse(String responseBody,
+      {String? category}) {
+    try {
+      final decoded = jsonDecode(responseBody);
+      if (decoded is! Map) return null;
+      final candidates = decoded['candidates'];
+      if (candidates is! List || candidates.isEmpty) return null;
+      final first = candidates.first;
+      final content = first is Map ? first['content'] : null;
+      final parts = content is Map ? content['parts'] : null;
+      if (parts is! List || parts.isEmpty || parts.first is! Map) return null;
+      final text = parts.first['text'];
+      if (text is! String) return null;
+
+      // Tolerate ```json fences or text around the object.
+      final start = text.indexOf('{');
+      final end = text.lastIndexOf('}');
+      if (start == -1 || end <= start) return null;
+      final parsed = jsonDecode(text.substring(start, end + 1));
+      if (parsed is! Map) return null;
+
+      final description = (parsed['description'] as Object?)?.toString().trim();
+      if (description == null || description.isEmpty) return null;
+
+      final proposed = parsed['category']?.toString().trim();
+      final resolvedCategory = category ??
+          (_categories.contains(proposed) ? proposed! : 'Plat principal');
+
+      final raw = parsed['allergens'];
+      final allergens = <String>{
+        if (raw is List)
+          for (final a in raw)
+            if (allergenIds.contains(FoodLabels.canonical(a.toString())))
+              FoodLabels.canonical(a.toString()),
+      };
+
+      return DishSuggestion(
+        description: description,
+        category: resolvedCategory,
+        allergens: _labels(allergens),
+        source: SuggestionSource.gemini,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Local fallback ──────────────────────────────────────────────────────────
 
-  DishSuggestion _localSuggestion(String dishName) {
-    final name = dishName.toLowerCase().trim();
-    final category = _detectCategory(name);
-    final allergens = _detectAllergens(name);
-    final description = _generateDescription(name, category);
-
+  /// Offline suggestion: category, allergens and description derived from
+  /// the dish name (French and English keywords).
+  @visibleForTesting
+  static DishSuggestion localSuggestion(String dishName, {String? category}) {
+    final text = ' ${FoodLabels.normalize(dishName)} ';
+    final resolvedCategory = category ?? _detectCategory(text);
     return DishSuggestion(
-      description: description,
-      category: category,
-      allergens: allergens,
+      description: _describe(dishName.trim(), text, resolvedCategory),
+      category: resolvedCategory,
+      allergens: _labels(detectAllergens(dishName)),
       source: SuggestionSource.local,
     );
   }
 
-  String _detectCategory(String name) {
-    if (_matchesAny(name, _dessertKeywords)) return 'Dessert';
-    if (_matchesAny(name, _drinkKeywords)) return 'Boisson';
-    if (_matchesAny(name, _starterKeywords)) return 'Entrée';
-    if (_matchesAny(name, _snackKeywords)) return 'Snack';
+  /// Canonical allergens (see [allergenIds]) suggested by the words of
+  /// [dishName].
+  @visibleForTesting
+  static Set<String> detectAllergens(String dishName) {
+    final text = ' ${FoodLabels.normalize(dishName)} ';
+    // "Peanut butter" / "beurre de cacahuète" is not dairy.
+    final dairyText = text.replaceAll(
+        RegExp(r'peanut butter|beurre de cacahuetes?'), ' ');
+    return {
+      for (final e in _allergenKeywords.entries)
+        if (_hasAny(e.key == 'lactose' ? dairyText : text, e.value)) e.key,
+    };
+  }
+
+  static String _detectCategory(String text) {
+    if (_hasAny(text, _dessertKeywords)) return 'Dessert';
+    if (_hasAny(text, _drinkKeywords)) return 'Boisson';
+    if (_hasAny(text, _starterKeywords)) return 'Entrée';
+    if (_hasAny(text, _snackKeywords)) return 'Snack';
     return 'Plat principal';
   }
 
-  List<String> _detectAllergens(String name) {
-    final found = <String>[];
-    _allergenMap.forEach((allergen, keywords) {
-      if (_matchesAny(name, keywords)) found.add(allergen);
-    });
-    return found.isEmpty ? ['Aucun'] : found;
+  /// "Pizza Margherita : pâte à pizza, tomate et mozzarella. Plat principal
+  /// préparé à la minute par notre chef."
+  static String _describe(String name, String text, String category) {
+    final ingredients = [
+      for (final e in _ingredientPhrases.entries)
+        if (_hasAny(text, e.value)) e.key,
+    ];
+    final intro = _categoryPhrases[category] ?? _categoryPhrases['Plat principal']!;
+    if (ingredients.isEmpty) return '$name : $intro';
+    final list = ingredients.length == 1
+        ? ingredients.first
+        : '${ingredients.sublist(0, ingredients.length - 1).join(', ')} '
+            'et ${ingredients.last}';
+    return '$name : ${list[0].toUpperCase()}${list.substring(1)}. $intro';
   }
 
-  String _generateDescription(String name, String category) {
-    final base = _baseDescriptions[category] ??
-        _baseDescriptions['Plat principal']!;
-    final extras = <String>[];
+  /// Whole-word match (plural "s"/"x" allowed) on normalised text, so
+  /// "laitue" is not "lait" and "épinards" is not "pain".
+  static bool _hasAny(String text, List<String> keywords) => keywords.any(
+      (k) => RegExp('(^|[^a-z])${RegExp.escape(FoodLabels.normalize(k))}'
+              '[sx]?(?=[^a-z]|\$)')
+          .hasMatch(text));
 
-    if (_matchesAny(name, ['poulet', 'chicken'])) {
-      extras.add('poulet tendre et moelleux');
-    } else if (_matchesAny(name, ['bœuf', 'beef', 'steak', 'burger'])) {
-      extras.add('viande de bœuf sélectionnée');
-    } else if (_matchesAny(name, ['poisson', 'saumon', 'thon', 'fish'])) {
-      extras.add('poisson frais du jour');
-    } else if (_matchesAny(name, ['végé', 'vegetar', 'vegan'])) {
-      extras.add('ingrédients 100 % végétariens');
-    } else if (_matchesAny(name, ['agneau', 'lamb'])) {
-      extras.add('agneau tendre mijoté aux épices');
-    } else if (_matchesAny(name, ['pâtes', 'spaghetti', 'tagliatelle', 'pasta'])) {
-      extras.add('pâtes cuites al dente');
-    } else if (_matchesAny(name, ['pizza'])) {
-      extras.add('pâte fine croustillante garnie');
-    } else if (_matchesAny(name, ['salade', 'salad'])) {
-      extras.add('légumes frais de saison');
-    } else if (_matchesAny(name, ['couscous'])) {
-      extras.add('semoule fine avec légumes et viandes');
-    } else if (_matchesAny(name, ['tajine', 'tagine'])) {
-      extras.add('cuisson lente au tajine traditionnel');
-    }
+  static List<String> _labels(Set<String> canonical) => canonical.isEmpty
+      ? const ['Aucun']
+      : [
+          for (final id in allergenIds)
+            if (canonical.contains(id)) _capitalize(FoodLabels.display(id)),
+        ];
 
-    if (extras.isEmpty) {
-      return '$base Préparé avec soin par notre chef avec des ingrédients frais.';
-    }
-    return '$base Préparé avec ${extras.join(', ')}, '
-        'sélectionné avec soin pour vous offrir le meilleur.';
-  }
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-  bool _matchesAny(String text, List<String> keywords) =>
-      keywords.any((kw) => text.contains(kw));
+  static const _categories = [
+    'Entrée', 'Plat principal', 'Dessert', 'Boisson', 'Snack',
+    'Menu enfant', 'Spécialité',
+  ];
 
-  // ── Keyword tables ──────────────────────────────────────────────────────────
+  // ── Keyword tables (normalised: lowercase, no accents) ─────────────────────
+
+  static const _allergenKeywords = <String, List<String>>{
+    'gluten': [
+      'pain', 'pates', 'pasta', 'spaghetti', 'tagliatelle', 'penne',
+      'lasagne', 'ravioli', 'nouille', 'noodle', 'pizza', 'farine', 'flour',
+      'ble', 'wheat', 'semoule', 'couscous', 'burger', 'bun', 'sandwich',
+      'panini', 'croque', 'croissant', 'brioche', 'baguette', 'bread',
+      'toast', 'wrap', 'crepe', 'gaufre', 'waffle', 'quiche', 'tarte', 'pie',
+      'gateau', 'cake', 'biscuit', 'cookie', 'brownie', 'beignet', 'donut',
+      'brick', 'brik', 'makroudh', 'baklava', 'pane', 'panure', 'chapelure',
+      'lablabi', 'tempura', 'nugget', 'biere', 'beer', 'seitan', 'boulgour',
+    ],
+    'lactose': [
+      'lait', 'milk', 'fromage', 'cheese', 'creme', 'cream', 'beurre',
+      'butter', 'yaourt', 'yogurt', 'mozzarella', 'parmesan', 'emmental',
+      'gruyere', 'cheddar', 'chevre', 'feta', 'ricotta', 'mascarpone',
+      'burrata', 'raclette', 'fondue', 'bechamel', 'gratin', 'croque',
+      'margherita', 'quatre fromages', 'pizza', 'lasagne', 'carbonara',
+      'tiramisu', 'cheesecake', 'glace', 'ice cream', 'latte', 'cappuccino',
+      'milkshake', 'milk-shake', 'panna cotta', 'flan', 'caramel', 'alfredo',
+      'cheeseburger', 'quiche',
+    ],
+    'oeufs': [
+      'oeuf', 'egg', 'omelette', 'omelet', 'mayonnaise', 'mayo', 'aioli',
+      'quiche', 'flan', 'carbonara', 'meringue', 'crepe', 'brik', 'brick',
+      'tiramisu', 'mousse', 'gateau', 'cake', 'brioche', 'gaufre', 'waffle',
+      'creme brulee', 'nicoise', 'shakshuka', 'chakchouka', 'ojja',
+    ],
+    'poisson': [
+      'poisson', 'fish', 'saumon', 'salmon', 'thon', 'tuna', 'cabillaud',
+      'cod', 'sardine', 'anchois', 'anchovy', 'merlu', 'dorade', 'loup de mer',
+      'sole', 'truite', 'trout', 'sushi', 'sashimi', 'maki',
+      'nicoise', 'mechouia',
+    ],
+    'crustaces': [
+      'crevette', 'shrimp', 'prawn', 'homard', 'lobster', 'crabe', 'crab',
+      'langouste', 'langoustine', 'gambas', 'ecrevisse', 'fruits de mer',
+      'seafood', 'paella',
+    ],
+    'arachides': [
+      'cacahuete', 'arachide', 'peanut', 'satay', 'beurre de cacahuete',
+    ],
+    'fruits a coque': [
+      'noix', 'nut', 'walnut', 'amande', 'almond', 'noisette', 'hazelnut',
+      'pistache', 'pistachio', 'cajou', 'cashew', 'pecan', 'pignon',
+      'praline', 'nutella', 'frangipane', 'makroudh', 'baklava',
+    ],
+    'soja': ['soja', 'soy', 'tofu', 'miso', 'edamame', 'tempeh'],
+    'sesame': ['sesame', 'tahini', 'tahin', 'houmous', 'hummus', 'halva'],
+    'moutarde': ['moutarde', 'mustard', 'dijon'],
+    'celeri': ['celeri', 'celery'],
+  };
+
+  /// Ingredient phrases for the fallback description.
+  static const _ingredientPhrases = <String, List<String>>{
+    'pâte à pizza': ['pizza'],
+    'tomate': ['tomate', 'tomato', 'margherita', 'bolognaise', 'mechouia'],
+    'mozzarella': ['mozzarella', 'margherita'],
+    'fromage fondant': ['fromage', 'cheese', 'raclette', 'fondue', 'croque'],
+    'jambon': ['jambon', 'ham', 'croque'],
+    'béchamel': ['bechamel', 'croque', 'lasagne'],
+    'pâtes': ['pates', 'pasta', 'spaghetti', 'tagliatelle', 'penne'],
+    'poulet': ['poulet', 'chicken'],
+    'bœuf': ['boeuf', 'beef', 'steak', 'burger', 'bolognaise'],
+    'agneau': ['agneau', 'lamb', 'mechoui'],
+    'poisson frais': ['poisson', 'fish', 'dorade', 'loup', 'merlu'],
+    'saumon': ['saumon', 'salmon'],
+    'thon': ['thon', 'tuna', 'brik'],
+    'crevettes': ['crevette', 'shrimp', 'prawn', 'gambas'],
+    'œuf': ['oeuf', 'egg', 'omelette', 'brik', 'ojja', 'chakchouka'],
+    'semoule et légumes': ['couscous'],
+    'légumes mijotés': ['tajine', 'tagine', 'ratatouille'],
+    'légumes frais': ['salade', 'salad'],
+    'crème': ['creme', 'cream', 'carbonara'],
+    'chocolat': ['chocolat', 'chocolate', 'brownie'],
+    'fruits': ['fruit', 'pomme', 'apple', 'fraise', 'strawberry', 'citron'],
+    'menthe': ['menthe', 'mint'],
+  };
+
+  static const _categoryPhrases = <String, String>{
+    'Entrée': 'Une entrée préparée à la minute pour ouvrir l\'appétit.',
+    'Plat principal': 'Un plat principal préparé à la minute par notre chef.',
+    'Dessert': 'Un dessert maison pour finir le repas en douceur.',
+    'Boisson': 'Une boisson servie bien fraîche (ou bien chaude).',
+    'Snack': 'Un encas gourmand à déguster à toute heure.',
+    'Menu enfant': 'Une portion adaptée aux plus petits.',
+    'Spécialité': 'Une spécialité de la maison, selon notre recette.',
+  };
 
   static const _dessertKeywords = [
-    'gâteau', 'cake', 'tarte', 'mousse', 'crème', 'glace', 'sorbet',
-    'tiramisu', 'brownie', 'macaron', 'éclair', 'fondant', 'mille-feuille',
-    'charlotte', 'pannacotta', 'cheesecake', 'flan', 'pudding', 'baklava',
-    'halwa', 'dessert',
+    'gateau', 'cake', 'tarte', 'mousse', 'glace', 'sorbet', 'tiramisu',
+    'brownie', 'macaron', 'eclair', 'fondant', 'mille-feuille', 'charlotte',
+    'panna cotta', 'cheesecake', 'flan', 'pudding', 'baklava', 'makroudh',
+    'creme caramel', 'creme brulee', 'crepe', 'gaufre', 'dessert', 'halwa',
   ];
 
   static const _drinkKeywords = [
-    'jus', 'café', 'thé', 'lait', 'eau', 'smoothie', 'limonade', 'boisson',
-    'soda', 'citronnade', 'milk-shake', 'juice', 'coffee', 'tea', 'drink',
-    'cocktail', 'infusion', 'expresso', 'cappuccino', 'latte',
+    'jus', 'cafe', 'the a la menthe', 'the vert', 'the noir', 'eau', 'smoothie', 'limonade', 'boisson', 'soda',
+    'citronnade', 'milk-shake', 'milkshake', 'juice', 'coffee', 'tea',
+    'drink', 'cocktail', 'infusion', 'expresso', 'cappuccino', 'latte',
   ];
 
   static const _starterKeywords = [
-    'soupe', 'salade', 'entrée', 'velouté', 'bruschetta', 'carpaccio',
-    'tartare', 'tapas', 'mezze', 'houmous', 'brik', 'samoussa',
+    'soupe', 'salade', 'entree', 'veloute', 'bruschetta', 'carpaccio',
+    'tartare', 'tapas', 'mezze', 'houmous', 'brik', 'samoussa', 'lablabi',
+    'chorba', 'mechouia',
   ];
 
   static const _snackKeywords = [
     'sandwich', 'panini', 'wrap', 'toast', 'croissant', 'snack', 'nuggets',
+    'croque',
   ];
-
-  static const _allergenMap = <String, List<String>>{
-    'Gluten': [
-      'pain', 'pâte', 'farine', 'blé', 'semoule', 'pizza', 'burger',
-      'sandwich', 'brioche', 'couscous', 'pasta', 'spaghetti', 'croissant',
-    ],
-    'Lait': [
-      'fromage', 'crème', 'beurre', 'lait', 'gratin', 'lasagne', 'pizza',
-      'tiramisu', 'crêpe', 'fondue', 'milk-shake', 'cappuccino', 'latte',
-      'cheesecake',
-    ],
-    'Œuf': [
-      'œuf', 'omelette', 'quiche', 'mayonnaise', 'flan', 'crêpe', 'carbonara',
-    ],
-    'Poisson': [
-      'poisson', 'saumon', 'thon', 'cabillaud', 'anchois', 'sardine',
-    ],
-    'Crustacés': [
-      'crevette', 'homard', 'crabe', 'langouste', 'fruits de mer', 'paella',
-    ],
-    'Arachides': ['cacahuète', 'arachide', 'peanut', 'satay'],
-    'Fruits à coque': [
-      'amande', 'noix', 'noisette', 'pistache', 'cajou', 'baklava', 'praline',
-    ],
-    'Soja': ['soja', 'tofu', 'miso', 'edamame'],
-    'Sésame': ['sésame', 'tahini', 'houmous'],
-  };
-
-  static const _baseDescriptions = <String, String>{
-    'Entrée': 'Une entrée délicate pour ouvrir l\'appétit.',
-    'Plat principal': 'Un plat généreux et savoureux au cœur de notre carte.',
-    'Dessert': 'Une douceur sucrée pour terminer le repas en beauté.',
-    'Boisson': 'Une boisson rafraîchissante pour accompagner votre repas.',
-    'Snack': 'Un encas rapide et gourmand à déguster à toute heure.',
-    'Menu enfant': 'Un menu équilibré conçu pour les plus petits.',
-    'Spécialité': 'Notre spécialité maison, préparée selon une recette unique.',
-  };
 }
 
 // ─── Enums & DTO ─────────────────────────────────────────────────────────────
@@ -291,6 +412,8 @@ enum SuggestionSource { gemini, local }
 class DishSuggestion {
   final String description;
   final String category;
+
+  /// Display labels ("Gluten", "Lactose", "Œufs"…), or `['Aucun']`.
   final List<String> allergens;
   final SuggestionSource source;
 

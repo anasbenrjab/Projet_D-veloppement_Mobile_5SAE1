@@ -75,6 +75,9 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
   late final TextEditingController _priceCtrl;
   late final TextEditingController _allergensCtrl;
   late String _selectedCategory;
+
+  /// The restaurant picked a category itself (not just the default).
+  bool _categoryChosen = false;
   late bool _isAvailable;
   String? _imageUrl;
   bool _isSaving = false;
@@ -138,7 +141,11 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
     setState(() => _isLoadingAi = true);
     try {
       final suggestion =
-          await DishAiService.instance.suggestFromName(name);
+          await DishAiService.instance.suggestFromName(name,
+              // The category, when the restaurant set one, guides the AI.
+              category: _isEditing || _categoryChosen
+                  ? _selectedCategory
+                  : null);
       setState(() {
         _descCtrl.text = suggestion.description;
         _allergensCtrl.text = suggestion.allergensLabel;
@@ -406,7 +413,10 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
                             : FontWeight.normal,
                       ),
                       onSelected: (_) =>
-                          setState(() => _selectedCategory = cat),
+                          setState(() {
+                            _selectedCategory = cat;
+                            _categoryChosen = true;
+                          }),
                     );
                   }).toList(),
                 ),

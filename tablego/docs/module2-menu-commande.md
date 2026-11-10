@@ -28,8 +28,27 @@ remplacé par la connexion du Module Utilisateur : le rôle vient du compte.
 ## Clé Gemini (assistant IA)
 
 La clé n'est pas dans le code (dépôt public). Copiez `secrets.example.json` en
-`secrets.json` (ignoré par git) et mettez-y votre clé Google AI Studio.
-Sans clé, l'assistant utilise ses suggestions locales.
+`tablego/secrets.json` (ignoré par git) et mettez-y votre clé Google AI Studio.
+
+**La clé n'est lue qu'au lancement avec `--dart-define-from-file=secrets.json`**
+(`flutter run -d chrome --dart-define-from-file=secrets.json`). Un simple
+`flutter run` n'a pas de clé : l'assistant utilise alors ses suggestions
+locales. Chaque génération l'indique dans la console :
+`[DishAI] path=gemini model=…` ou `[DishAI] path=fallback reason=…`.
+Optionnel : `"GEMINI_MODEL": "<nom du modèle>"` dans `secrets.json` pour forcer
+un modèle (sinon la liste par défaut est essayée dans l'ordre).
+
+- **Gemini** : le prompt contient le nom du plat (et sa catégorie si le
+  restaurant l'a choisie) et demande un JSON `description` (1-2 phrases en
+  français, propres au plat), `category`, `allergens` (uniquement la liste
+  commune : gluten, lactose, oeufs, poisson, crustaces, arachides,
+  fruits a coque, soja, sesame, moutarde, celeri). La réponse est validée
+  (valeurs inconnues ignorées, réponse inutilisable → suggestion locale).
+- **Suggestion locale** : description construite à partir du nom (ingrédients
+  reconnus) et allergènes détectés par mots-clés français et anglais
+  (fromage/cheese → lactose, pâtes/pizza/pain → gluten, crevette/shrimp →
+  crustacés, œuf/egg → œufs, cacahuète/peanut → arachides, noix/nut → fruits à
+  coque…), en mots entiers (« laitue » n'est pas « lait »).
 
 ## Fonctionnalités
 
