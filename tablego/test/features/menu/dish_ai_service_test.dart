@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -219,4 +221,93 @@ void main() {
           SuggestionSource.local);
     });
   });
+
+  group('key from the git-ignored assets/config/gemini.json', () {
+    String ok(String text) => _geminiBody(text);
+
+    test('the key in the local config is used (no --dart-define)', () async {
+      late http.Request seen;
+      final service = DishAiService(
+        bundle: _FakeBundle({
+          DishAiService.localConfigAsset: '{"GEMINI_API_KEY": "file-key"}',
+        }),
+        client: MockClient((r) async {
+          seen = r;
+          return http.Response(ok('{"description":"Ok."}'), 200);
+        }),
+      );
+      expect(await service.hasApiKey(), isTrue);
+      final s = await service.suggestFromName('Pizza');
+      expect(s.source, SuggestionSource.gemini);
+      expect(seen.headers['x-goog-api-key'], 'file-key');
+      expect(seen.url.path,
+          endsWith('/${DishAiService.defaultModels.first}:generateContent'));
+    });
+
+    test('GEMINI_MODEL in the file forces the model', () async {
+      late Uri url;
+      final service = DishAiService(
+        bundle: _FakeBundle({
+          DishAiService.localConfigAsset:
+              '{"GEMINI_API_KEY": "k", "GEMINI_MODEL": "gemini-forced"}',
+        }),
+        client: MockClient((r) async {
+          url = r.url;
+          return http.Response(ok('{"description":"Ok."}'), 200);
+        }),
+      );
+      await service.suggestFromName('Pizza');
+      expect(url.path, endsWith('/gemini-forced:generateContent'));
+    });
+
+    test('no file, the example placeholder, or broken JSON → fallback, no '
+        'HTTP call', () async {
+      for (final files in [
+        <String, String>{},
+        {
+          DishAiService.localConfigAsset:
+              '{"GEMINI_API_KEY": "colle-ta-cle-ici (https://aistudio.google.com)"}',
+        },
+        {DishAiService.localConfigAsset: '{not json'},
+      ]) {
+        var calls = 0;
+        final service = DishAiService(
+          bundle: _FakeBundle(files),
+          client: MockClient((_) async {
+            calls++;
+            return http.Response('', 500);
+          }),
+        );
+        expect(await service.hasApiKey(), isFalse, reason: '$files');
+        expect((await service.suggestFromName('Pizza')).source,
+            SuggestionSource.local);
+        expect(calls, 0);
+      }
+    });
+
+    test('an explicit key (argument) wins and the file is not read', () async {
+      final bundle = _FakeBundle({
+        DishAiService.localConfigAsset: '{"GEMINI_API_KEY": "file-key"}',
+      });
+      final service = DishAiService(apiKey: '', bundle: bundle);
+      expect(await service.hasApiKey(), isFalse);
+      expect(bundle.reads, 0);
+    });
+  });
+}
+
+/// In-memory asset bundle; a missing key throws like the real one.
+class _FakeBundle extends CachingAssetBundle {
+  _FakeBundle(this.files);
+
+  final Map<String, String> files;
+  int reads = 0;
+
+  @override
+  Future<ByteData> load(String key) async {
+    reads++;
+    final content = files[key];
+    if (content == null) throw FlutterError('Unable to load asset: $key');
+    return ByteData.sublistView(Uint8List.fromList(utf8.encode(content)));
+  }
 }

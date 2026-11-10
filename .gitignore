@@ -11,3 +11,5 @@ tablego_module2/secrets.json
 *.iml
 .vscode/
 Thumbs.db
+# Local Gemini key loaded by DishAiService (assets/config/gemini.json) — never commit
+tablego/assets/config/gemini.json

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:http/http.dart' as http;
 
 import '../../recommendations/domain/food_labels.dart';
@@ -18,41 +19,90 @@ class DishAiService {
     http.Client? client,
     String? apiKey,
     List<String>? models,
+    this._bundle,
   })  : _client = client ?? http.Client(),
-        _apiKey = apiKey ?? _keyFromEnvironment,
-        _models = models ?? _modelsFromEnvironment;
+        _explicitKey = apiKey,
+        _explicitModels = models;
 
   static final DishAiService instance = DishAiService();
 
   // ── Gemini config ──────────────────────────────────────────────────────────
-  // The key is NOT stored in the code (the repo is public). It is read at
-  // BUILD time from secrets.json (git-ignored), only when the app is started
-  // with:
-  //   flutter run -d chrome --dart-define-from-file=secrets.json
-  // A plain `flutter run` has no key → the local fallback is used.
+  // The key is NOT stored in the code (the repo is public).  Where it comes
+  // from, first match wins:
+  //   1. --dart-define GEMINI_API_KEY (e.g. --dart-define-from-file=secrets.json)
+  //   2. assets/config/gemini.json — git-ignored, copy gemini.example.json;
+  //      read once at the first generation, so a plain `flutter run` works.
+  // No key → the local fallback is used.
   static const String _keyFromEnvironment =
       String.fromEnvironment('GEMINI_API_KEY');
+  static const String _modelFromEnvironment =
+      String.fromEnvironment('GEMINI_MODEL');
 
-  // Models tried in order (first that answers wins).  Override with
-  // "GEMINI_MODEL" in secrets.json to force one model.
-  static const String _modelOverride = String.fromEnvironment('GEMINI_MODEL');
-  static List<String> get _modelsFromEnvironment => _modelOverride.isNotEmpty
-      ? [_modelOverride]
-      : const [
-          'gemini-3.8-flash',
-          'gemini-3.5-flash-lite',
-          'gemini-3.1-flash-lite',
-        ];
+  /// Git-ignored local config: {"GEMINI_API_KEY": "...", "GEMINI_MODEL": ""}.
+  static const String localConfigAsset = 'assets/config/gemini.json';
+
+  // Models tried in order (first that answers wins); "GEMINI_MODEL" forces
+  // one.  All listed by the Gemini ListModels API in November 2026.
+  static const List<String> defaultModels = [
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
+  ];
 
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/';
 
   final http.Client _client;
-  final String _apiKey;
-  final List<String> _models;
+  final String? _explicitKey;
+  final List<String>? _explicitModels;
+  final AssetBundle? _bundle;
 
-  /// True when a Gemini key was compiled in (see [_keyFromEnvironment]).
-  bool get hasApiKey => _apiKey.isNotEmpty;
+  String _apiKey = '';
+  List<String> _models = defaultModels;
+  bool _configLoaded = false;
+
+  /// Resolves the key and models once (see the order above).
+  Future<void> _loadConfig() async {
+    if (_configLoaded) return;
+    _configLoaded = true;
+
+    var key = _explicitKey ?? _keyFromEnvironment;
+    var model = _modelFromEnvironment;
+    var source = _explicitKey != null ? 'argument' : '--dart-define';
+
+    if (_explicitKey == null && key.isEmpty) {
+      try {
+        final raw = await (_bundle ?? rootBundle).loadString(localConfigAsset);
+        final json = jsonDecode(raw);
+        if (json is Map) {
+          final fromFile = (json['GEMINI_API_KEY'] ?? '').toString().trim();
+          // The example file's placeholder contains spaces: not a key.
+          if (fromFile.isNotEmpty && !fromFile.contains(' ')) {
+            key = fromFile;
+            source = localConfigAsset;
+          }
+          if (model.isEmpty) {
+            model = (json['GEMINI_MODEL'] ?? '').toString().trim();
+          }
+        }
+      } catch (_) {
+        // No local config file: normal for teammates without a key.
+      }
+    }
+
+    _apiKey = key;
+    _models = _explicitModels ?? (model.isNotEmpty ? [model] : defaultModels);
+    debugPrint(_apiKey.isEmpty
+        ? '[DishAI] no Gemini key (no --dart-define, no $localConfigAsset)'
+        : '[DishAI] Gemini key from $source, models: ${_models.join(', ')}');
+  }
+
+  /// True when a Gemini key is available (after the config is loaded).
+  Future<bool> hasApiKey() async {
+    await _loadConfig();
+    return _apiKey.isNotEmpty;
+  }
 
   /// Allergen vocabulary shared with the recommender (canonical names, see
   /// docs/integration-recommandations.md).
@@ -68,9 +118,9 @@ class DishAiService {
   /// heuristics on any failure.
   Future<DishSuggestion> suggestFromName(String dishName,
       {String? category}) async {
-    if (!hasApiKey) {
+    if (!await hasApiKey()) {
       debugPrint('[DishAI] path=fallback reason=no GEMINI_API_KEY '
-          '(run with --dart-define-from-file=secrets.json)');
+          '(--dart-define or $localConfigAsset)');
       return localSuggestion(dishName, category: category);
     }
     try {
@@ -140,7 +190,8 @@ Si le plat ne contient probablement aucun de ces allergènes, renvoie "allergens
               },
               body: body,
             )
-            .timeout(const Duration(seconds: 15));
+            // Per model: an overloaded model must not block the next one.
+            .timeout(const Duration(seconds: 10));
 
         if (response.statusCode != 200) {
           // 503 overloaded / 429 rate limited / 404 unknown model → next one

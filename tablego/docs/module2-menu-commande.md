@@ -27,16 +27,27 @@ remplacé par la connexion du Module Utilisateur : le rôle vient du compte.
 
 ## Clé Gemini (assistant IA)
 
-La clé n'est pas dans le code (dépôt public). Copiez `secrets.example.json` en
-`tablego/secrets.json` (ignoré par git) et mettez-y votre clé Google AI Studio.
+La clé n'est **jamais** dans le code ni dans git (dépôt public). Deux façons
+de la fournir (la première trouvée gagne) :
 
-**La clé n'est lue qu'au lancement avec `--dart-define-from-file=secrets.json`**
-(`flutter run -d chrome --dart-define-from-file=secrets.json`). Un simple
-`flutter run` n'a pas de clé : l'assistant utilise alors ses suggestions
-locales. Chaque génération l'indique dans la console :
+1. `--dart-define` : copiez `secrets.example.json` en `tablego/secrets.json`
+   (ignoré par git) puis
+   `flutter run -d chrome --dart-define-from-file=secrets.json` ;
+2. **fichier local, sans option de lancement** : copiez
+   `tablego/assets/config/gemini.example.json` en
+   `tablego/assets/config/gemini.json` (ignoré par git) et mettez-y la clé.
+   Un simple `flutter run -d chrome` l'utilise (lu à la première génération).
+
+Sans clé, l'assistant utilise ses suggestions locales. La console indique la
+source de la clé (`[DishAI] Gemini key from …`) puis, à chaque génération,
 `[DishAI] path=gemini model=…` ou `[DishAI] path=fallback reason=…`.
-Optionnel : `"GEMINI_MODEL": "<nom du modèle>"` dans `secrets.json` pour forcer
-un modèle (sinon la liste par défaut est essayée dans l'ordre).
+Optionnel : `"GEMINI_MODEL": "<nom du modèle>"` (dans l'un ou l'autre fichier)
+pour forcer un modèle ; sinon `gemini-3.8-flash`, `gemini-3.5-flash-lite`,
+`gemini-3.1-flash-lite` puis `gemini-flash-latest` sont essayés dans l'ordre
+(10 s maximum chacun : un modèle surchargé passe la main au suivant).
+
+> Sur le web, `assets/config/gemini.json` est servi avec l'application : ne
+> déployez pas publiquement une version contenant une clé.
 
 - **Gemini** : le prompt contient le nom du plat (et sa catégorie si le
   restaurant l'a choisie) et demande un JSON `description` (1-2 phrases en
