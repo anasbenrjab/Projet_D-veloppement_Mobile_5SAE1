@@ -204,7 +204,7 @@ class _MealPhotoSheetState extends ConsumerState<_MealPhotoSheet> {
                                   width: double.infinity,
                                   child: Image.network(m.preview,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
+                                      errorBuilder: (_, _, _) =>
                                           Container(color: AppColors.peach)),
                                 ),
                               ),

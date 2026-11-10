@@ -17,8 +17,15 @@ class Routes {
   static const String editRestaurantProfile = '/edit-restaurant-profile';
   static const String favorites            = '/favorites';
 
+  // Module 2 — menu + commande
+  static const String restaurants          = '/restaurants';
+  static const String restaurantMenu       = '/restaurant-menu';
+  static const String restaurantHome       = '/restaurant';
+  static const String myOrders             = '/my-orders';
+
   /// Landing route for an authenticated user: restaurant accounts go to
-  /// their restaurant screen, everyone else to the client home.
+  /// their restaurant space (dishes, orders, profile…), everyone else to the
+  /// client home.
   static String homeFor(String? userType) =>
-      userType == 'restaurant' ? restaurantProfile : home;
+      userType == 'restaurant' ? restaurantHome : home;
 }

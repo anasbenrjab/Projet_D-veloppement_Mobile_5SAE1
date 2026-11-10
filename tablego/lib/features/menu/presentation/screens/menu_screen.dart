@@ -30,7 +30,11 @@ void openDish(BuildContext context, DishModel dish) => Navigator.of(context)
 /// Client home: restaurant header, search, "Plat du jour" hero card,
 /// category chips and popular dishes — styled after the TableGo mockup.
 class MenuHomeTab extends ConsumerStatefulWidget {
-  const MenuHomeTab({super.key, this.onOpenMenu, this.onSwitchRole});
+  const MenuHomeTab(
+      {super.key, this.restaurantName, this.onOpenMenu, this.onSwitchRole});
+
+  /// Restaurant being browsed (shown in the header).
+  final String? restaurantName;
   final VoidCallback? onOpenMenu;
   final VoidCallback? onSwitchRole;
 
@@ -81,7 +85,7 @@ class _MenuHomeTabState extends ConsumerState<MenuHomeTab> {
                               color: AppColors.primary, size: 18),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text('Dar Slah · La Marsa',
+                            child: Text(widget.restaurantName ?? 'Restaurant',
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
                                     fontSize: 15,
@@ -95,6 +99,8 @@ class _MenuHomeTabState extends ConsumerState<MenuHomeTab> {
                     ],
                   ),
                 ),
+                // Role switching is gone with real accounts: hidden when null.
+                if (widget.onSwitchRole != null)
                 Tooltip(
                   message: 'Espace restaurant',
                   child: InkWell(
@@ -492,7 +498,7 @@ class _MenuExplorerTabState extends ConsumerState<MenuExplorerTab> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
                         itemCount: displayDishes.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 12),
                         itemBuilder: (_, i) =>
                             DishListCard(dish: displayDishes[i]),

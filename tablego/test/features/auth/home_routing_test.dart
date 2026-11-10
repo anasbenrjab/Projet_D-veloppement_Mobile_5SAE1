@@ -44,8 +44,8 @@ void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   group('Routes.homeFor', () {
-    test('restaurant → restaurant screen', () {
-      expect(Routes.homeFor('restaurant'), Routes.restaurantProfile);
+    test('restaurant → restaurant space (Module 2 shell)', () {
+      expect(Routes.homeFor('restaurant'), Routes.restaurantHome);
     });
 
     test('client → client home', () {
@@ -73,6 +73,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
+    expect(find.text('Mes plats'), findsWidgets);
     expect(find.text('Mon restaurant'), findsOneWidget);
     expect(find.text('Que voulez-vous manger ?'), findsNothing);
   });

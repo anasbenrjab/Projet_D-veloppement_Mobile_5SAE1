@@ -16,6 +16,9 @@ import 'features/profile/presentation/screens/edit_client_profile_screen.dart';
 import 'features/profile/presentation/screens/restaurant_profile_screen.dart';
 import 'features/profile/presentation/screens/edit_restaurant_profile_screen.dart';
 import 'features/favorites/presentation/screens/favorites_screen.dart';
+import 'features/commande/presentation/screens/module2_shells.dart';
+import 'features/commande/presentation/screens/order_history_screen.dart';
+import 'features/menu/presentation/screens/restaurants_screen.dart';
 
 void main() {
   final bootWatch = Stopwatch()..start();
@@ -45,6 +48,15 @@ class TableGoApp extends StatelessWidget {
       // until they read from the colour scheme.
       themeMode: ThemeMode.light,
       initialRoute: Routes.splash,
+      // Routes that take arguments.
+      onGenerateRoute: (settings) => switch (settings.name) {
+        Routes.restaurantMenu => MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => ClientShell(
+                args: settings.arguments! as RestaurantMenuArgs),
+          ),
+        _ => null,
+      },
       routes: {
         Routes.splash:                (_) => const SplashScreen(),
         Routes.login:                 (_) => const LoginScreen(),
@@ -57,6 +69,10 @@ class TableGoApp extends StatelessWidget {
         Routes.restaurantProfile:     (_) => const RestaurantProfileScreen(),
         Routes.editRestaurantProfile: (_) => const EditRestaurantProfileScreen(),
         Routes.favorites:             (_) => const FavoritesScreen(),
+        // Module 2 — menu + commande
+        Routes.restaurants:           (_) => const RestaurantsScreen(),
+        Routes.restaurantHome:        (_) => const RestaurantShell(),
+        Routes.myOrders:              (_) => const OrderHistoryScreen(),
       },
     );
   }

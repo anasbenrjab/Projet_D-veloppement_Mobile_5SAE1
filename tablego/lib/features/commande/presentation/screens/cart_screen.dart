@@ -66,7 +66,7 @@ class CartScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w700,
                             color: AppColors.textDark)),
                   ),
-                  if (clearButton != null) clearButton,
+                  ?clearButton,
                 ],
               ),
             ),
@@ -79,7 +79,7 @@ class CartScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mon panier'),
-        actions: [if (clearButton != null) clearButton],
+        actions: [?clearButton],
       ),
       body: body,
     );
@@ -217,7 +217,7 @@ class _CartSummary extends StatelessWidget {
             const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.07),
+            color: Colors.black.withValues(alpha: 0.07),
             blurRadius: 12,
             offset: const Offset(0, -4),
           ),

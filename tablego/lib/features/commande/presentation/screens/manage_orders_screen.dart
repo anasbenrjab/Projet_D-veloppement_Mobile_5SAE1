@@ -198,8 +198,8 @@ class _RestaurantOrderCard extends ConsumerWidget {
                       horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: order.orderType == OrderType.dineIn
-                        ? AppColors.primary.withOpacity(0.1)
-                        : AppColors.eco.withOpacity(0.1),
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.eco.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -253,7 +253,7 @@ class _RestaurantOrderCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.rating.withOpacity(0.1),
+                  color: AppColors.rating.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

@@ -24,7 +24,7 @@ class _SimilarRecipes extends ConsumerWidget {
         child: LinearProgressIndicator(
             color: AppColors.primary, backgroundColor: AppColors.peach),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (list) {
         if (list.isEmpty) return const SizedBox.shrink();
         return Column(
@@ -59,7 +59,7 @@ class _SimilarRecipes extends ConsumerWidget {
                           height: 48,
                           child: Image.network(m.preview,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (_, _, _) =>
                                   Container(color: AppColors.peach)),
                         ),
                       ),
@@ -128,10 +128,12 @@ class _DishDetailScreenState extends ConsumerState<DishDetailScreen> {
   Future<void> _loadDish() async {
     final repo = DishRepository(DatabaseHelper.instance);
     final dish = await repo.getDishById(widget.dishId);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _dish = dish;
       _isLoading = false;
     });
+    }
   }
 
   @override
@@ -207,7 +209,7 @@ class _DishDetailScreenState extends ConsumerState<DishDetailScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(dish.category,
@@ -251,8 +253,8 @@ class _DishDetailScreenState extends ConsumerState<DishDetailScreen> {
                                   horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: a == 'Aucun'
-                                    ? AppColors.eco.withOpacity(0.1)
-                                    : AppColors.error.withOpacity(0.1),
+                                    ? AppColors.eco.withValues(alpha: 0.1)
+                                    : AppColors.error.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(a,
@@ -359,7 +361,7 @@ class _QtyButton extends StatelessWidget {
         height: 52,
         margin: const EdgeInsets.only(right: 8, left: 8),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.1),
+          color: AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.primary),
         ),

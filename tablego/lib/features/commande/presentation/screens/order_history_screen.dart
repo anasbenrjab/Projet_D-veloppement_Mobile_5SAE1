@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/order_model.dart';
 import '../../providers/order_provider.dart';
@@ -99,7 +100,7 @@ class _OrderTile extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: color.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(_statusIcon(order.status),
@@ -137,7 +138,7 @@ class _OrderTile extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -227,7 +228,7 @@ class _EmptyHistory extends StatelessWidget {
           const SizedBox(height: 24),
           TextButton.icon(
             onPressed: () =>
-                Navigator.of(context).pushNamed('/menu'),
+                Navigator.of(context).pushNamed(Routes.restaurants),
             icon: const Icon(Icons.restaurant_menu),
             label: const Text('Voir le menu'),
           ),

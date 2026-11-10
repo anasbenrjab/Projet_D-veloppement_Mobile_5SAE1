@@ -312,7 +312,7 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border:
                             Border.all(color: AppColors.primary, width: 1.5),
@@ -393,7 +393,7 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
                     return ChoiceChip(
                       label: Text(cat),
                       selected: selected,
-                      selectedColor: AppColors.primary.withOpacity(0.15),
+                      selectedColor: AppColors.primary.withValues(alpha: 0.15),
                       labelStyle: TextStyle(
                         color: selected
                             ? AppColors.primary
@@ -428,7 +428,7 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
                     'Les clients peuvent commander ce plat',
                     style: TextStyle(fontSize: 12)),
                 value: _isAvailable,
-                activeColor: AppColors.eco,
+                activeThumbColor: AppColors.eco,
                 onChanged: (v) => setState(() => _isAvailable = v),
               ),
             ),

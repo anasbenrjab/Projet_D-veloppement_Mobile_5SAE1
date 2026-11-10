@@ -6,6 +6,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../data/models/order_model.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/order_provider.dart';
+import '../../../profile/providers/profile_provider.dart';
 import 'order_confirmation_screen.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -17,7 +18,14 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String _orderType = OrderType.dineIn;
-  final _nameCtrl = TextEditingController(text: 'Client');
+  // Prefilled with the logged-in client's name (Module 1 profile).
+  late final _nameCtrl = TextEditingController(text: _profileName());
+
+  String _profileName() {
+    final data = ref.read(profileProvider).data;
+    final name = data is ClientData ? data.profile.fullName?.trim() : null;
+    return (name == null || name.isEmpty) ? 'Client' : name;
+  }
   final _noteCtrl = TextEditingController();
 
   @override

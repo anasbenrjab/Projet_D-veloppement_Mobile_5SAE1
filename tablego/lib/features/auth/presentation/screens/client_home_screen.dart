@@ -9,6 +9,7 @@ import '../../../recommendations/presentation/widgets/recommendation_carousel.da
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/widgets/restaurant_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../commande/presentation/screens/module2_shells.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({super.key});
@@ -32,8 +33,16 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   }
 
   void _onNavTap(int index) {
+    if (index == 1) {
+      Navigator.of(context).pushNamed(Routes.restaurants);
+      return;
+    }
     if (index == 2) {
       Navigator.of(context).pushNamed(Routes.favorites);
+      return;
+    }
+    if (index == 3) {
+      Navigator.of(context).pushNamed(Routes.myOrders);
       return;
     }
     if (index == 4) {
@@ -235,6 +244,7 @@ class _FavoriteRestaurantsList extends ConsumerWidget {
                 address:     r.address,
                 photoPath:   r.firstPhotoPath,
                 isFavorite:  favIds.contains(r.id),
+                onTap: () => openRestaurantMenu(context, r.id, r.name),
                 onFavoriteTap: () => ref
                     .read(favoriteRestaurantsProvider(userId).notifier)
                     .toggle(r.id),
