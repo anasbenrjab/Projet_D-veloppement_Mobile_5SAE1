@@ -194,6 +194,9 @@ class _AddEditDishScreenState extends ConsumerState<AddEditDishScreen> {
       allergens: _allergensCtrl.text.trim().isEmpty
           ? 'Aucun'
           : _allergensCtrl.text.trim(),
+      // Integration: keep the dish's restaurant when editing (the model's
+      // default 0 is not a restaurant_profiles.id).
+      restaurantId: widget.dish?.restaurantId ?? 0,
       createdAt: widget.dish?.createdAt ?? DateTime.now(),
     );
 

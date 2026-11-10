@@ -111,7 +111,8 @@ class DishNotifier extends StateNotifier<DishState> {
 
   Future<bool> updateDish(DishModel dish) async {
     try {
-      await _repo.updateDish(dish);
+      await _repo.updateDish(
+          dish.copyWith(restaurantId: await _currentRestaurantId()));
       _onChanged?.call();
       await loadAll();
       return true;
@@ -134,7 +135,12 @@ class DishNotifier extends StateNotifier<DishState> {
   }
 
   Future<void> deleteDish(int id) async {
-    await _repo.deleteDish(id);
+    try {
+      await _repo.deleteDish(id);
+    } catch (e) {
+      state = state.copyWith(error: 'Suppression impossible : $e');
+      return;
+    }
     _onChanged?.call();
     state = state.copyWith(
         dishes: state.dishes.where((d) => d.id != id).toList());

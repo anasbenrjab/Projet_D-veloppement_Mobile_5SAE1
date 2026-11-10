@@ -87,7 +87,11 @@ class DishRepository {
   }
 
   Future<DishModel> updateDish(DishModel dish) async {
-    final map = dish.toMap()..remove('created_at');
+    // A dish never changes restaurant, and keeps its creation date.
+    final map = dish.toMap()
+      ..remove('id')
+      ..remove('created_at')
+      ..remove('restaurant_id');
     await (await _database).update(
       'dishes',
       map,
