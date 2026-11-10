@@ -90,6 +90,13 @@ class DatabaseHelper {
   factory DatabaseHelper.forTesting(Database db) =>
       DatabaseHelper._internal().._db = db;
 
+  /// Makes the app-wide [instance] use [db] (or reopen normally when null).
+  ///
+  /// For whole-app widget tests: Module 2/3 screens and several providers
+  /// read [instance] directly instead of an injected helper.
+  @visibleForTesting
+  static void useDatabaseForTesting(Database? db) => instance._db = db;
+
   // ── Initialisation ────────────────────────────────────────────────────────
   Future<Database> _initDb() async {
     final sw = Stopwatch()..start();
