@@ -1,6 +1,13 @@
 tablego/build/
 tablego/.dart_tool/
 tablego/.idea/
+# Local secrets (Gemini API key, read via --dart-define-from-file) — never commit
+tablego/secrets.json
+# Module 2 (Menu + Commande), removed after the port into tablego/
+tablego_module2/build/
+tablego_module2/.dart_tool/
+tablego_module2/.idea/
+tablego_module2/secrets.json
 *.iml
 .vscode/
 Thumbs.db
