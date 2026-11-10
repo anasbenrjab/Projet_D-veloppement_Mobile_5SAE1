@@ -50,8 +50,10 @@ class OrderNotifier extends StateNotifier<OrderState> {
   /// placed, a restaurant the orders it received.
   final UserModel? _user;
 
-  /// Restaurant the client is ordering from (selectedRestaurantProvider).
-  final int? _selectedRestaurantId;
+  /// Reads the restaurant the client is ordering from
+  /// (selectedRestaurantProvider) at checkout time — read, not watched, so
+  /// opening another restaurant does not rebuild this notifier.
+  final int? Function()? _selectedRestaurantId;
 
   /// Bumps userDataChangesProvider so recommendations take new orders in.
   final void Function()? _onOrderPlaced;
@@ -71,8 +73,10 @@ class OrderNotifier extends StateNotifier<OrderState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final orders = await _fetchOrders();
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {
+      if (!mounted) return;
       state =
           state.copyWith(isLoading: false, error: 'Erreur de chargement: $e');
     }
@@ -87,7 +91,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
     state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
     try {
       final user = _user;
-      final restaurantId = _selectedRestaurantId;
+      final restaurantId = _selectedRestaurantId?.call();
       if (user == null || restaurantId == null) {
         throw StateError('Connectez-vous et choisissez un restaurant.');
       }
@@ -145,7 +149,7 @@ final orderProvider = StateNotifierProvider<OrderNotifier, OrderState>(
   (ref) => OrderNotifier(
     ref.watch(orderRepositoryProvider),
     user: ref.watch(authProvider.select((s) => s.user)),
-    selectedRestaurantId: ref.watch(selectedRestaurantProvider),
+    selectedRestaurantId: () => ref.read(selectedRestaurantProvider),
     onOrderPlaced: () =>
         ref.read(userDataChangesProvider.notifier).changed(),
   ),

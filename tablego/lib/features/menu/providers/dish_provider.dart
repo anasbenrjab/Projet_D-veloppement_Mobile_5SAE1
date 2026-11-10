@@ -78,9 +78,11 @@ class DishNotifier extends StateNotifier<DishState> {
       final dishes =
           await _repo.getAllDishes(restaurantId: await _currentRestaurantId());
       debugPrint('[DishNotifier] loaded ${dishes.length} dishes');
+      if (!mounted) return; // rebuilt for another user/restaurant
       state = state.copyWith(isLoading: false, dishes: dishes);
     } catch (e) {
       debugPrint('[DishNotifier] loadAll error: $e');
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: '$e');
     }
   }
@@ -101,6 +103,7 @@ class DishNotifier extends StateNotifier<DishState> {
       return true;
     } catch (e) {
       debugPrint('[DishNotifier] addDish error: $e');
+      if (!mounted) return false;
       state = state.copyWith(isLoading: false, error: '$e');
       return false;
     }
@@ -114,6 +117,7 @@ class DishNotifier extends StateNotifier<DishState> {
       return true;
     } catch (e) {
       debugPrint('[DishNotifier] updateDish error: $e');
+      if (!mounted) return false;
       state = state.copyWith(isLoading: false, error: '$e');
       return false;
     }
@@ -173,9 +177,11 @@ class MenuNotifier extends StateNotifier<DishState> {
     try {
       final dishes = await _repo.getAvailableDishes(restaurantId: restaurantId);
       debugPrint('[MenuNotifier] loaded ${dishes.length} available dishes');
+      if (!mounted) return; // rebuilt for another user/restaurant
       state = state.copyWith(isLoading: false, dishes: dishes);
     } catch (e) {
       debugPrint('[MenuNotifier] loadMenu error: $e');
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: '$e');
     }
   }

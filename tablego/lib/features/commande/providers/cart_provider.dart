@@ -63,8 +63,10 @@ class CartNotifier extends StateNotifier<CartState> {
           ? await _repo.getCartItems(
               userId: _userId!, restaurantId: _restaurantId!)
           : const <CartItemModel>[];
+      if (!mounted) return; // rebuilt for another user/restaurant
       state = state.copyWith(isLoading: false, items: items);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: '$e');
     }
   }
