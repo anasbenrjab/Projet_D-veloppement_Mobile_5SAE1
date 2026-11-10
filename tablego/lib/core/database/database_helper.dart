@@ -5,7 +5,9 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'seeds/dev_seed.dart';
+import 'seeds/events_seed.dart';
 import 'seeds/menu_seed.dart';
+import 'tables/events_tables.dart';
 import 'tables/menu_tables.dart';
 import 'tables/shared_tables.dart';
 import 'tables/user_module_tables.dart';
@@ -36,7 +38,9 @@ class DatabaseHelper {
   //   v3 — dishes.allergens (recommendations)
   //   v4 — Module 2 (menu + commande): dishes.category, cart_items, orders,
   //        order_items; order_history becomes a VIEW over orders/order_items
-  static const int _dbVersion = 4;
+  //   v5 — Module 3 (événements + réservations): evenement, reservation,
+  //        restaurant_profiles.seat_capacity
+  static const int _dbVersion = 5;
 
   /// Current schema version, exposed for tests and tooling.
   static int get schemaVersion => _dbVersion;
@@ -220,8 +224,18 @@ class DatabaseHelper {
           '(${sw.elapsedMilliseconds}ms)');
     }
 
+    // Module 3 (événements + réservations): evenement, reservation,
+    // restaurant_profiles.seat_capacity.
+    await EventsTables.create(db);
+    if (kDebugMode) {
+      debugPrint('[DB] onCreate: events tables done '
+          '(${sw.elapsedMilliseconds}ms)');
+    }
+
     // Seed test data in debug builds only — no-op in release.
     await DevSeed.run(db);
+    // Module 3 demo (needs the seeded restaurant and demo clients).
+    await EventsSeed.applyEventsDemo(db);
 
     if (kDebugMode) {
       debugPrint('[DB] onCreate: end (version $version, '
@@ -238,6 +252,7 @@ class DatabaseHelper {
   Future<void> _onOpen(Database db) async {
     await DevSeed.applyRecommendationDemo(db);
     await MenuSeed.applyMenuDemo(db);
+    await EventsSeed.applyEventsDemo(db);
     await DevSeed.applySeedPhotos(db);
   }
 
@@ -269,6 +284,10 @@ class DatabaseHelper {
       // v4: Module 2 tables; order_history rows move into orders/order_items
       // and the table is replaced by a view.
       await MenuTables.create(db);
+    }
+    if (oldVersion < 5) {
+      // v5: Module 3 tables (events, table reservations, seat capacity).
+      await EventsTables.create(db);
     }
   }
 

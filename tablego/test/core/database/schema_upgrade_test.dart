@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:tablego/core/database/database_helper.dart';
+import 'package:tablego/core/database/tables/events_tables.dart';
+import 'package:tablego/core/database/tables/menu_tables.dart';
 import 'package:tablego/core/database/tables/shared_tables.dart';
 import 'package:tablego/core/database/tables/user_module_tables.dart';
 
@@ -32,8 +34,8 @@ Future<Set<String>> _dishColumns(Database db) async =>
 void main() {
   setUpAll(sqfliteFfiInit);
 
-  test('schema version is 4', () {
-    expect(DatabaseHelper.schemaVersion, 4);
+  test('schema version is 5', () {
+    expect(DatabaseHelper.schemaVersion, 5);
   });
 
   test('a v2 database upgrades: dishes.allergens added, rows kept',
@@ -165,5 +167,52 @@ void main() {
     await DatabaseHelper.migrate(db, 3, 4);
     expect(await db.query('orders'), hasLength(2));
     expect(await db.query('order_history'), hasLength(2));
+  });
+
+  test('a v4 database upgrades to v5: Module 3 tables and seat capacity',
+      () async {
+    final dir = Directory.systemTemp.createTempSync('tablego_upgrade_v5_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}${Platform.pathSeparator}tablego.db';
+
+    var db = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: 4,
+          onCreate: (db, _) async {
+            await UserModuleTables.create(db);
+            await SharedTables.create(db);
+            await MenuTables.create(db);
+          },
+        ));
+    final ownerId = await db.insert('users', {
+      'email': 'r@test.com', 'password_hash': 'h', 'salt': 's',
+      'password_iterations': 1, 'user_type': 'restaurant',
+    });
+    await db.insert(
+        'restaurant_profiles', {'user_id': ownerId, 'name': 'Chez Test'});
+    await db.close();
+
+    db = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: DatabaseHelper.schemaVersion,
+          onUpgrade: DatabaseHelper.migrate,
+        ));
+    addTearDown(db.close);
+
+    final tables = (await db.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"))
+        .map((r) => r['name'])
+        .toSet();
+    expect(tables, containsAll(['evenement', 'reservation']));
+    // Module 3's own restaurant/client/meta tables are not recreated.
+    expect(tables, isNot(contains('restaurant')));
+    expect(tables, isNot(contains('client')));
+    expect(tables, isNot(contains('meta')));
+    final rp = (await db.query('restaurant_profiles')).single;
+    expect(rp['seat_capacity'], 40);
+
+    // Idempotent.
+    await DatabaseHelper.migrate(db, 4, 5);
+    await EventsTables.create(db);
   });
 }

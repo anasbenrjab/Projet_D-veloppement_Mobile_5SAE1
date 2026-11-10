@@ -146,9 +146,10 @@ par défaut de `ordered_at`). Les commandes récentes comptent davantage
 | v1 | tables initiales (Module 1 + tables partagées) |
 | v2 | `profile_photos` (photos web) |
 | v3 | `dishes.allergens` (recommandations, Module 1) |
-| **v4** | **Module 2 : `dishes.category`, `cart_items`, `orders`, `order_items` ; `order_history` devient une vue** |
+| v4 | Module 2 : `dishes.category`, `cart_items`, `orders`, `order_items` ; `order_history` devient une vue |
+| **v5** | **Module 3 : `evenement`, `reservation`, `restaurant_profiles.seat_capacity`** |
 
-La version **4 est prise** (Module 2). Le Module 3 (événements) utilise **v5**.
+Version actuelle : **5**. Toute nouvelle modification de schéma prend **v6**.
 
 Règle à suivre pour toute modification de schéma
 (`lib/core/database/database_helper.dart`) :
