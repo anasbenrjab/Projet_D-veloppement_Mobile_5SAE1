@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:tablego/core/database/database_helper.dart';
 import 'package:tablego/core/database/seeds/dev_seed.dart';
+import 'package:tablego/core/database/seeds/menu_seed.dart';
+import 'package:tablego/core/database/tables/menu_tables.dart';
 import 'package:tablego/core/database/tables/shared_tables.dart';
 import 'package:tablego/core/database/tables/user_module_tables.dart';
 import 'package:tablego/core/utils/photo_ref.dart';
@@ -48,6 +50,7 @@ Future<Database> _freshSeededDb() => databaseFactoryFfi.openDatabase(
         onCreate: (db, _) async {
           await UserModuleTables.create(db);
           await SharedTables.create(db);
+          await MenuTables.create(db);
           await DevSeed.run(db);
         },
       ),
@@ -119,13 +122,19 @@ void main() {
             reason: email);
       }
       // Dishes added for the recommendation demo use the placeholder.
+      // Module 2's demo dishes use network photos (TheMealDB / Unsplash).
       final dishes = await db.query('dishes',
-          columns: ['name', 'photo_path'], where: 'photo_path IS NOT NULL');
+          columns: ['name', 'photo_path'],
+          where: "photo_path IS NOT NULL AND photo_path NOT LIKE 'http%'");
       expect(dishes, hasLength(5));
       for (final d in dishes) {
         expect(d['photo_path'], startsWith('assets/images/seed/dishes/'),
             reason: d['name'] as String);
       }
+      final networkPhotos = await db.query('dishes',
+          columns: ['name'], where: "photo_path LIKE 'https://%'");
+      expect(networkPhotos.map((d) => d['name']),
+          unorderedEquals(menuDemoDishNames));
     });
 
     test('every seed photo exists in a folder bundled by pubspec.yaml', () {
@@ -184,7 +193,8 @@ void main() {
     test('every seed dish declares normalised tags and allergens', () async {
       final db = await _freshSeededDb();
       final dishes = await db.query('dishes');
-      expect(dishes, hasLength(seedMenuSize));
+      // Recommendation demo menu + Module 2's demo menu.
+      expect(dishes, hasLength(seedMenuSize + menuDemoSize));
       for (final d in dishes) {
         expect(d['allergens'], isNotNull, reason: d['name'] as String);
         final labels = [
@@ -234,7 +244,9 @@ void main() {
               "'Salmon Sashimi (8 pcs)')");
       await db.update('dishes', {'tags': '["vegetarian"]', 'allergens': null});
 
+      // Same backfills as DatabaseHelper._onOpen.
       await DevSeed.applyRecommendationDemo(db);
+      await MenuSeed.applyMenuDemo(db);
       for (final e in expected.entries) {
         expect(await count(db, e.key), e.value, reason: e.key);
       }
@@ -246,6 +258,7 @@ void main() {
 
       // Idempotent: a second pass adds nothing.
       await DevSeed.applyRecommendationDemo(db);
+      await MenuSeed.applyMenuDemo(db);
       for (final e in expected.entries) {
         expect(await count(db, e.key), e.value, reason: e.key);
       }

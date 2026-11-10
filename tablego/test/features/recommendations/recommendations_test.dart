@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:tablego/core/data/user_data_changes.dart';
 import 'package:tablego/core/database/database_helper.dart';
+import 'package:tablego/core/database/seeds/menu_seed.dart';
 import 'package:tablego/features/auth/data/repositories/auth_repository.dart';
 import 'package:tablego/features/favorites/data/repositories/favorites_repository.dart';
 import 'package:tablego/features/favorites/providers/favorites_provider.dart';
@@ -157,11 +158,11 @@ void main() {
         userType: 'client', resetQuestion: 'Q?', resetAnswer: 'A',
       );
       for (final user in [f.clientId, other.id]) {
-        await f.db.insert('order_history', {
-          'user_id': user, 'restaurant_id': f.restaurantId,
-          'dish_id': f.dishIds['Poulet'],
-          'ordered_at': '2026-10-30T12:00:00Z',
-        });
+        // order_history is a view over Module 2's orders/order_items.
+        await MenuSeed.insertOrder(f.db,
+            userId: user, restaurantId: f.restaurantId,
+            dishId: f.dishIds['Poulet']!,
+            at: DateTime.utc(2026, 10, 30, 12));
       }
       await f.db.insert('favorite_dishes',
           {'user_id': f.clientId, 'dish_id': f.dishIds['Falafel']});
@@ -236,10 +237,9 @@ void main() {
     expect(_dishNames(afterProfile), isNot(contains('Cookie')));
 
     // 3. An order is saved by another module, which signals the change.
-    await f.db.insert('order_history', {
-      'user_id': f.clientId, 'restaurant_id': f.restaurantId,
-      'dish_id': f.dishIds['Poulet'],
-    });
+    await MenuSeed.insertOrder(f.db,
+        userId: f.clientId, restaurantId: f.restaurantId,
+        dishId: f.dishIds['Poulet']!);
     container.read(userDataChangesProvider.notifier).changed();
     await container.read(provider.future);
     expect(counting.calls, 4);

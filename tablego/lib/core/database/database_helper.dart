@@ -5,6 +5,8 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'seeds/dev_seed.dart';
+import 'seeds/menu_seed.dart';
+import 'tables/menu_tables.dart';
 import 'tables/shared_tables.dart';
 import 'tables/user_module_tables.dart';
 import 'web_database_factory.dart';
@@ -31,8 +33,10 @@ class DatabaseHelper {
   // Bump this for every schema change.  See class doc for the versioning rule.
   //   v1 — initial user-module + shared tables
   //   v2 — profile_photos (web photo bytes)
-  //   v3 — dishes.allergens (recommendations); next modules take v4, v5…
-  static const int _dbVersion = 3;
+  //   v3 — dishes.allergens (recommendations)
+  //   v4 — Module 2 (menu + commande): dishes.category, cart_items, orders,
+  //        order_items; order_history becomes a VIEW over orders/order_items
+  static const int _dbVersion = 4;
 
   /// Current schema version, exposed for tests and tooling.
   static int get schemaVersion => _dbVersion;
@@ -200,11 +204,19 @@ class DatabaseHelper {
           '(${sw.elapsedMilliseconds}ms)');
     }
 
-    // Shared tables: dishes, order_history
-    // Defined here for FK integrity; content managed by the orders module.
+    // Shared tables: dishes, order_history (the v1 table, replaced by a view
+    // in MenuTables.create below).  Defined here for FK integrity.
     await SharedTables.create(db);
     if (kDebugMode) {
       debugPrint('[DB] onCreate: shared tables done '
+          '(${sw.elapsedMilliseconds}ms)');
+    }
+
+    // Module 2 (menu + commande): dishes.category, cart_items, orders,
+    // order_items, and the order_history view.
+    await MenuTables.create(db);
+    if (kDebugMode) {
+      debugPrint('[DB] onCreate: menu tables done '
           '(${sw.elapsedMilliseconds}ms)');
     }
 
@@ -225,6 +237,7 @@ class DatabaseHelper {
   /// it does not bump [_dbVersion].
   Future<void> _onOpen(Database db) async {
     await DevSeed.applyRecommendationDemo(db);
+    await MenuSeed.applyMenuDemo(db);
     await DevSeed.applySeedPhotos(db);
   }
 
@@ -251,6 +264,11 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       // v3: dishes.allergens (recommendations).
       await SharedTables.addDishAllergens(db);
+    }
+    if (oldVersion < 4) {
+      // v4: Module 2 tables; order_history rows move into orders/order_items
+      // and the table is replaced by a view.
+      await MenuTables.create(db);
     }
   }
 

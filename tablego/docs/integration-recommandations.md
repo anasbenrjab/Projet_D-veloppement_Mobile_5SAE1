@@ -32,14 +32,20 @@ flutter test test/features/recommendations test/core/database
 | Table                  | Colonnes lues                                                     | Remarque |
 |------------------------|-------------------------------------------------------------------|----------|
 | `dishes`               | `id`, `restaurant_id`, `name`, `description`, `price`, `photo_path`, `is_available`, `tags`, `allergens` | `restaurant_id` = `restaurant_profiles.id` |
-| `order_history`        | `user_id`, `restaurant_id`, `dish_id`, `ordered_at`               | lecture seule |
+| `order_history`        | `user_id`, `restaurant_id`, `dish_id`, `ordered_at`               | **vue** (v4) sur `orders` + `order_items` du Module 2, lecture seule |
 | `favorite_restaurants` | `user_id`, `restaurant_id`, `created_at`                          | géré par le Module 1 |
 | `favorite_dishes`      | `user_id`, `dish_id`, `created_at`                                | géré par le Module 1 |
 | `client_profiles`      | `user_id`, `dietary_preferences`, `allergies`                     | géré par le Module 1 |
 | `restaurant_profiles`  | `id`, `user_id`, `name`, `address`, `cuisine_type`, `photo_paths`, … | géré par le Module 1 |
 | `users`                | `id`, `user_type`, `is_active`                                    | seuls les clients actifs comptent |
 
-Les tables `dishes` et `order_history` sont définies dans
+Depuis la version 4 de la base, `order_history` est une **vue** construite à
+partir des tables `orders` et `order_items` du Module 2 (une ligne par plat
+commandé, `ordered_at` = date de la commande) : les commandes ne sont stockées
+qu'une fois. Pour enregistrer une commande, on écrit dans `orders` /
+`order_items` (voir `OrderRepository.placeOrder`), jamais dans la vue.
+
+Les tables `dishes` et `order_history` (v1) sont définies dans
 `lib/core/database/tables/shared_tables.dart` (schéma partagé) ; leur logique
 métier appartient au Module 2.
 
@@ -139,9 +145,10 @@ par défaut de `ordered_at`). Les commandes récentes comptent davantage
 |---------|---------|
 | v1 | tables initiales (Module 1 + tables partagées) |
 | v2 | `profile_photos` (photos web) |
-| **v3** | **`dishes.allergens` (recommandations, Module 1)** |
+| v3 | `dishes.allergens` (recommandations, Module 1) |
+| **v4** | **Module 2 : `dishes.category`, `cart_items`, `orders`, `order_items` ; `order_history` devient une vue** |
 
-La version **3 est prise**. Les prochains modules utilisent **v4, v5…**
+La version **4 est prise** (Module 2). Le Module 3 (événements) utilise **v5**.
 
 Règle à suivre pour toute modification de schéma
 (`lib/core/database/database_helper.dart`) :

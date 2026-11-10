@@ -32,11 +32,11 @@ Future<Set<String>> _dishColumns(Database db) async =>
 void main() {
   setUpAll(sqfliteFfiInit);
 
-  test('schema version is 3', () {
-    expect(DatabaseHelper.schemaVersion, 3);
+  test('schema version is 4', () {
+    expect(DatabaseHelper.schemaVersion, 4);
   });
 
-  test('a v2 database upgrades to v3: dishes.allergens added, rows kept',
+  test('a v2 database upgrades: dishes.allergens added, rows kept',
       () async {
     final dir = Directory.systemTemp.createTempSync('tablego_upgrade_');
     addTearDown(() => dir.deleteSync(recursive: true));
@@ -56,7 +56,7 @@ void main() {
     expect(await _dishColumns(db), isNot(contains('allergens')));
     await db.close();
 
-    // 2. Reopened by the v3 app: the real upgrade steps run.
+    // 2. Reopened by the current app: the real upgrade steps run.
     db = await databaseFactoryFfi.openDatabase(path,
         options: OpenDatabaseOptions(
           version: DatabaseHelper.schemaVersion,
@@ -64,7 +64,7 @@ void main() {
         ));
     addTearDown(db.close);
 
-    expect(await db.getVersion(), 3);
+    expect(await db.getVersion(), DatabaseHelper.schemaVersion);
     expect(await _dishColumns(db), contains('allergens'));
     final row = (await db.query('dishes')).single;
     expect(row['name'], 'Ancien plat');
@@ -89,5 +89,81 @@ void main() {
         ));
     addTearDown(db.close);
     expect(await _dishColumns(db), contains('allergens'));
+  });
+
+  test('a v3 database upgrades to v4: order_history rows become orders, '
+      'and order_history becomes a view', () async {
+    final dir = Directory.systemTemp.createTempSync('tablego_upgrade_v4_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}${Platform.pathSeparator}tablego.db';
+
+    // 1. A database created by the v3 app (order_history is a table).
+    var db = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: 3,
+          onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+          onCreate: (db, _) async {
+            await UserModuleTables.create(db);
+            await SharedTables.create(db);
+          },
+        ));
+    final userId = await db.insert('users', {
+      'email': 'c@test.com', 'password_hash': 'h', 'salt': 's',
+      'password_iterations': 1, 'user_type': 'client',
+    });
+    final ownerId = await db.insert('users', {
+      'email': 'r@test.com', 'password_hash': 'h', 'salt': 's',
+      'password_iterations': 1, 'user_type': 'restaurant',
+    });
+    final restaurantId = await db.insert(
+        'restaurant_profiles', {'user_id': ownerId, 'name': 'Chez Test'});
+    final dishId = await db.insert('dishes',
+        {'restaurant_id': restaurantId, 'name': 'Tajine', 'price': 20.0});
+    await db.insert('order_history', {
+      'user_id': userId, 'restaurant_id': restaurantId, 'dish_id': dishId,
+      'ordered_at': '2026-10-01T12:00:00Z',
+    });
+    await db.insert('order_history', {
+      'user_id': userId, 'restaurant_id': restaurantId, 'dish_id': null,
+      'ordered_at': '2026-10-02T12:00:00Z',
+    });
+    await db.close();
+
+    // 2. Reopened by the v4 app.
+    db = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: DatabaseHelper.schemaVersion,
+          onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+          onUpgrade: DatabaseHelper.migrate,
+        ));
+    addTearDown(db.close);
+
+    final type = (await db.rawQuery(
+            "SELECT type FROM sqlite_master WHERE name = 'order_history'"))
+        .single['type'];
+    expect(type, 'view');
+    expect(await _dishColumns(db), contains('category'));
+
+    // Same history, now read through the view.
+    final history = await db.query('order_history',
+        columns: ['user_id', 'restaurant_id', 'dish_id', 'ordered_at'],
+        orderBy: 'ordered_at');
+    expect(history, [
+      {'user_id': userId, 'restaurant_id': restaurantId, 'dish_id': dishId,
+       'ordered_at': '2026-10-01T12:00:00Z'},
+      {'user_id': userId, 'restaurant_id': restaurantId, 'dish_id': null,
+       'ordered_at': '2026-10-02T12:00:00Z'},
+    ]);
+    final items = await db.query('order_items',
+        columns: ['dish_name', 'dish_price', 'quantity'], orderBy: 'id');
+    expect(items, [
+      {'dish_name': 'Tajine', 'dish_price': 20.0, 'quantity': 1},
+      {'dish_name': 'Plat supprimé', 'dish_price': 0.0, 'quantity': 1},
+    ]);
+
+    // 3. Idempotent: running the v4 step again changes nothing.
+    await DatabaseHelper.migrate(db, 3, 4);
+    expect(await db.query('orders'), hasLength(2));
+    expect(await db.query('order_history'), hasLength(2));
   });
 }

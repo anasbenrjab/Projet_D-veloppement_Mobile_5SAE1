@@ -29,6 +29,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../utils/password_hasher.dart';
+import 'menu_seed.dart';
 
 // ── Opening hours ─────────────────────────────────────────────────────────────
 
@@ -442,17 +443,19 @@ class DevSeed {
         {'user_id': clientId, 'dish_id': d5},
         conflictAlgorithm: ConflictAlgorithm.ignore);
 
-    // ── Order history (same 4 rows as seed.js) ────────────────────────────────
-    for (final row in [
-      {'user_id': clientId, 'restaurant_id': gourmetRpId, 'dish_id': d1},
-      {'user_id': clientId, 'restaurant_id': gourmetRpId, 'dish_id': d2},
-      {'user_id': clientId, 'restaurant_id': sushiRpId,   'dish_id': d5},
-      {'user_id': clientId, 'restaurant_id': burgerRpId,  'dish_id': d3},
+    // ── Orders (same 4 lines as seed.js; order_history is a view over them) ──
+    for (final (restaurantId, dishId) in [
+      (gourmetRpId, d1),
+      (gourmetRpId, d2),
+      (sushiRpId,   d5),
+      (burgerRpId,  d3),
     ]) {
-      await db.insert('order_history', row);
+      await MenuSeed.insertOrder(db,
+          userId: clientId, restaurantId: restaurantId, dishId: dishId);
     }
 
     await applyRecommendationDemo(db);
+    await MenuSeed.applyMenuDemo(db);
     await applySeedPhotos(db);
 
     debugPrint('[DevSeed] end — base accounts + recommendation demo '
@@ -567,14 +570,11 @@ class DevSeed {
         }
         for (final (name, daysAgo) in c.orders) {
           final dish = _menu.firstWhere((d) => d.name == name);
-          await db.insert('order_history', {
-            'user_id':       userId,
-            'restaurant_id': restaurantIds[dish.restaurant],
-            'dish_id':       dishIds[name],
-            'ordered_at': now
-                .subtract(Duration(days: daysAgo))
-                .toIso8601String(),
-          });
+          await MenuSeed.insertOrder(db,
+              userId:       userId,
+              restaurantId: restaurantIds[dish.restaurant]!,
+              dishId:       dishIds[name]!,
+              at:           now.subtract(Duration(days: daysAgo)));
         }
       }
     }
