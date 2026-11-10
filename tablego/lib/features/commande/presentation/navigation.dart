@@ -28,3 +28,19 @@ void goToClientTab(BuildContext context, WidgetRef ref, int tab) {
   Navigator.of(context).popUntil(
       (r) => r.settings.name == Routes.restaurantMenu || r.isFirst);
 }
+
+/// Leaves the restaurant being browsed ([ClientTab] shell) and returns to
+/// the main client shell (Accueil · Explorer · Favoris · Activité · Profil).
+void leaveRestaurant(BuildContext context) {
+  Navigator.of(context).popUntil(
+      (r) => r.settings.name == Routes.home || r.isFirst);
+}
+
+/// After an order: back to the main client shell, then its Activité screen
+/// (Commandes tab), so the order is listed with every navigation option
+/// (Profil, logout) one tap away.
+void goToActivity(BuildContext context) {
+  final navigator = Navigator.of(context);
+  navigator.popUntil((r) => r.settings.name == Routes.home || r.isFirst);
+  navigator.pushNamed(Routes.activity);
+}

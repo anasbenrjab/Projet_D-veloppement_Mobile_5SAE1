@@ -65,10 +65,16 @@ class _DishAiAssistantScreenState
       allergens: s.allergensLabel,
       createdAt: DateTime.now(),
     );
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-          builder: (_) => AddEditDishScreen(dish: dish)),
-    );
+    final route = MaterialPageRoute<void>(
+        builder: (_) => AddEditDishScreen(dish: dish));
+    // Embedded as a tab of the restaurant shell: push, so the form returns to
+    // the shell (pushReplacement would replace the whole shell — no tabs, no
+    // logout).  Standalone: replace this screen as before.
+    if (widget.standalone) {
+      Navigator.of(context).pushReplacement(route);
+    } else {
+      Navigator.of(context).push(route);
+    }
   }
 
   @override

@@ -90,7 +90,23 @@ class _ClientShellState extends ConsumerState<ClientShell> {
     final cartCount = ref.watch(cartProvider).totalItems;
 
     return Scaffold(
-      body: IndexedStack(
+      body: Column(
+        children: [
+          // Integration: the way back to the main client shell (Profil,
+          // logout…), shown above every tab of this restaurant view.
+          _LeaveRestaurantBar(name: widget.args.name),
+          // The bar above already consumed the status-bar inset.
+          Expanded(
+            child: MediaQuery.removePadding(
+                context: context, removeTop: true, child: _tabs(tab)),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _bottomNav(tab, cartCount),
+    );
+  }
+
+  Widget _tabs(int tab) => IndexedStack(
         index: tab,
         children: [
           MenuHomeTab(
@@ -110,8 +126,9 @@ class _ClientShellState extends ConsumerState<ClientShell> {
           // Module 3: events + table reservations at this restaurant.
           ReserverTableTab(restaurantId: widget.args.restaurantId),
         ],
-      ),
-      bottomNavigationBar: TableGoBottomNav(
+      );
+
+  Widget _bottomNav(int tab, int cartCount) => TableGoBottomNav(
         currentIndex: tab,
         onTap: _go,
         items: [
@@ -138,6 +155,43 @@ class _ClientShellState extends ConsumerState<ClientShell> {
             activeIcon: Icons.event_seat,
           ),
         ],
+      );
+}
+
+/// Top bar of the restaurant view: back to the main client shell.
+class _LeaveRestaurantBar extends StatelessWidget {
+  const _LeaveRestaurantBar({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              IconButton(
+                key: const Key('leave_restaurant'),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: "Retour à l'accueil",
+                onPressed: () => leaveRestaurant(context),
+              ),
+              Expanded(
+                child: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

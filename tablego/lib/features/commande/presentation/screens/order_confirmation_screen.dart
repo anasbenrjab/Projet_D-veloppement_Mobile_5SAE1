@@ -110,7 +110,9 @@ class OrderConfirmationScreen extends ConsumerWidget {
               AppButton(
                 label: 'Voir mes commandes',
                 onPressed: () {
-                  goToClientTab(context, ref, ClientTab.orders);
+                  // Integration: the main client shell's Activité (with
+                  // Profil / logout), not the restaurant view's tab.
+                  goToActivity(context);
                 },
               ),
               const SizedBox(height: 12),
