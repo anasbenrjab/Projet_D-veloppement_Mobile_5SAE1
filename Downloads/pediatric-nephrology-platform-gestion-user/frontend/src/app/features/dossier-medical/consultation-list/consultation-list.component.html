@@ -1,0 +1,50 @@
+<div class="consultation-list">
+  <div class="list-header">
+    <h2><i class="fas fa-stethoscope"></i> Consultations Médicales</h2>
+    <p class="info-text">
+      <i class="fas fa-info-circle"></i> 
+      Les consultations sont créées par les parents. Utilisez l'onglet "Consultations" pour gérer les demandes.
+    </p>
+  </div>
+
+  <div *ngIf="loading" class="loading">
+    <i class="fas fa-spinner fa-spin"></i> Chargement...
+  </div>
+
+  <div *ngIf="!loading && consultations.length === 0" class="empty">
+    <i class="fas fa-clipboard-list"></i>
+    <p>Aucune consultation enregistrée</p>
+  </div>
+
+  <div class="consultations-grid">
+    <div *ngFor="let consultation of consultations" class="consultation-card">
+      <div class="card-header">
+        <div class="date">
+          <i class="fas fa-calendar"></i>
+          {{ consultation.dateRendezVous | date:'dd/MM/yyyy HH:mm' }}
+        </div>
+        <div class="status" *ngIf="consultation.statut">
+          <span class="badge" [class]="'badge-' + consultation.statut.toLowerCase()">
+            {{ consultation.statut }}
+          </span>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <h3>{{ consultation.motifConsultation }}</h3>
+        <p *ngIf="consultation.diagnostic" class="diagnostic">
+          <strong>Diagnostic:</strong> {{ consultation.diagnostic }}
+        </p>
+        <p *ngIf="consultation.observationsCliniques" class="observations">
+          <strong>Observations:</strong> {{ consultation.observationsCliniques }}
+        </p>
+        <p *ngIf="consultation.recommandations" class="recommandations">
+          <strong>Recommandations:</strong> {{ consultation.recommandations }}
+        </p>
+        <p *ngIf="consultation.compteRendu" class="compte-rendu">
+          <strong>Compte-rendu:</strong> {{ consultation.compteRendu }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

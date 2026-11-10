@@ -1,0 +1,29 @@
+name: resto_events
+description: "Module 3 - Événements & Réservations : démo de stage, sans backend, base SQLite locale."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Traductions Flutter (sélecteur de date en français, etc.)
+  flutter_localizations:
+    sdk: flutter
+  # SQLite local (Android/iOS)
+  sqflite: ^2.3.0
+  # SQLite dans le navigateur, via WebAssembly (utilisé seulement sous kIsWeb)
+  sqflite_common_ffi_web: ^0.4.0
+  # Calcul des chemins de la base de données
+  path: ^1.9.0
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
